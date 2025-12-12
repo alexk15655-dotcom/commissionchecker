@@ -351,21 +351,14 @@ class App {
                 manager = managersCtrl.accountManagers[Math.floor(Math.random() * managersCtrl.accountManagers.length)];
             }
 
-            // Для Акция/Органика каждая ФГ может иметь своего менеджера
+            // Для Акция/Органика/Проект - НЕТ менеджера
             agentFgs.forEach(fg => {
                 let fgManager = manager;
                 let fgSource = randomSource;
 
-                if (randomSource === 'Акция' || randomSource === 'Органика') {
-                    // Для акций и органики - случайный источник для каждой ФГ
-                    fgSource = Math.random() > 0.5 ? 'Акция' : 'Органика';
-                    
-                    // И может быть свой менеджер
-                    if (Math.random() > 0.5 && managersCtrl.recruiters.length > 0) {
-                        fgManager = managersCtrl.recruiters[Math.floor(Math.random() * managersCtrl.recruiters.length)];
-                    } else if (managersCtrl.accountManagers.length > 0) {
-                        fgManager = managersCtrl.accountManagers[Math.floor(Math.random() * managersCtrl.accountManagers.length)];
-                    }
+                // Для Акция/Органика/Проект менеджер не назначается
+                if (randomSource === 'Акция' || randomSource === 'Органика' || randomSource === 'Проект') {
+                    fgManager = null;
                 }
 
                 updatedData.push({
