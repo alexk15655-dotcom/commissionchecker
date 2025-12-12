@@ -13,6 +13,70 @@ class App {
         this.init();
     }
 
+    // Извлечение имени агента из названия ФГ
+    extractAgentName(fgName) {
+        if (!fgName) return 'Unknown';
+        // Берём первые два слова
+        const words = fgName.trim().split(/\s+/);
+        return words.slice(0, 2).join(' ');
+    }
+
+    // Расстояние Левенштейна для сравнения строк
+    levenshteinDistance(str1, str2) {
+        const len1 = str1.length;
+        const len2 = str2.length;
+        const matrix = Array(len1 + 1).fill(null).map(() => Array(len2 + 1).fill(0));
+
+        for (let i = 0; i <= len1; i++) matrix[i][0] = i;
+        for (let j = 0; j <= len2; j++) matrix[0][j] = j;
+
+        for (let i = 1; i <= len1; i++) {
+            for (let j = 1; j <= len2; j++) {
+                const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j - 1] + cost
+                );
+            }
+        }
+
+        return matrix[len1][len2];
+    }
+
+    // Группировка агентов с учётом похожих имён
+    groupAgents(fgData) {
+        const agentGroups = {};
+        const agentNames = [];
+
+        fgData.forEach(fg => {
+            const extractedName = this.extractAgentName(fg['ФГ']);
+            let matchedGroup = null;
+
+            // Ищем похожие имена (отличие на 1-2 символа)
+            for (const existingName of agentNames) {
+                const distance = this.levenshteinDistance(
+                    extractedName.toLowerCase(),
+                    existingName.toLowerCase()
+                );
+                
+                if (distance <= 2) {
+                    matchedGroup = existingName;
+                    break;
+                }
+            }
+
+            if (matchedGroup) {
+                agentGroups[matchedGroup].push(fg);
+            } else {
+                agentNames.push(extractedName);
+                agentGroups[extractedName] = [fg];
+            }
+        });
+
+        return agentGroups;
+    }
+
     async init() {
         // Инициализация БД
         await db.init();
@@ -203,8 +267,14 @@ class App {
         // Очищаем старые данные
         await db.clear('fgData');
 
+        // Добавляем поле агента к каждой записи
+        const processedData = data.map(row => ({
+            ...row,
+            agent: this.extractAgentName(row['ФГ'])
+        }));
+
         // Сохраняем новые
-        for (const row of data) {
+        for (const row of processedData) {
             await db.save('fgData', row);
         }
     }
@@ -227,6 +297,9 @@ class App {
             return;
         }
 
+        // Группируем ФГ по агентам
+        const agentGroups = this.groupAgents(fgData);
+
         // Создаем массив источников по пропорциям
         const sources = [];
         sources.push(...Array(Math.round(this.sourceDistribution.recruiter)).fill('Recruiter'));
@@ -235,24 +308,45 @@ class App {
         sources.push(...Array(Math.round(this.sourceDistribution.organic)).fill('Органика'));
         sources.push(...Array(Math.round(this.sourceDistribution.promo)).fill('Акция'));
 
-        // Распределяем источники и менеджеров
-        const updatedData = fgData.map(fg => {
+        const updatedData = [];
+
+        // Распределяем источники по агентам
+        for (const [agentName, agentFgs] of Object.entries(agentGroups)) {
             const randomSource = sources[Math.floor(Math.random() * sources.length)] || 'Проект';
             let manager = null;
 
+            // Для Recruiter/Account выбираем менеджера один раз на агента
             if (randomSource === 'Recruiter' && managersCtrl.recruiters.length > 0) {
                 manager = managersCtrl.recruiters[Math.floor(Math.random() * managersCtrl.recruiters.length)];
             } else if (randomSource === 'Account' && managersCtrl.accountManagers.length > 0) {
                 manager = managersCtrl.accountManagers[Math.floor(Math.random() * managersCtrl.accountManagers.length)];
             }
 
-            return {
-                ...fg,
-                source: randomSource,
-                manager: manager,
-                commission: this.defaultCommission
-            };
-        });
+            // Для Акция/Органика каждая ФГ может иметь своего менеджера
+            agentFgs.forEach(fg => {
+                let fgManager = manager;
+                let fgSource = randomSource;
+
+                if (randomSource === 'Акция' || randomSource === 'Органика') {
+                    // Для акций и органики - случайный источник для каждой ФГ
+                    fgSource = Math.random() > 0.5 ? 'Акция' : 'Органика';
+                    
+                    // И может быть свой менеджер
+                    if (Math.random() > 0.5 && managersCtrl.recruiters.length > 0) {
+                        fgManager = managersCtrl.recruiters[Math.floor(Math.random() * managersCtrl.recruiters.length)];
+                    } else if (managersCtrl.accountManagers.length > 0) {
+                        fgManager = managersCtrl.accountManagers[Math.floor(Math.random() * managersCtrl.accountManagers.length)];
+                    }
+                }
+
+                updatedData.push({
+                    ...fg,
+                    source: fgSource,
+                    manager: fgManager,
+                    commission: this.defaultCommission
+                });
+            });
+        }
 
         // Сохраняем обновленные данные
         await db.clear('fgData');
@@ -260,7 +354,7 @@ class App {
             await db.save('fgData', item);
         }
 
-        alert('Источники успешно распределены!');
+        alert(`Источники распределены! Найдено агентов: ${Object.keys(agentGroups).length}`);
     }
 }
 

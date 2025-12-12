@@ -125,7 +125,7 @@
                 <div class="card">
                     <h2>Финансовые группы</h2>
                     <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                        Просмотр всех ФГ с источниками, менеджерами и статистикой по предоплатам
+                        Просмотр всех ФГ с агентами, источниками, менеджерами и статистикой по предоплатам
                     </p>
                     <div class="table-wrapper">
                         <table id="fg-table">
@@ -133,6 +133,8 @@
                                 <tr>
                                     <th>ФГ</th>
                                     <th>Номер ФГ</th>
+                                    <th>Агент</th>
+                                    <th>Реф</th>
                                     <th>Источник</th>
                                     <th>Менеджер</th>
                                     <th>Сумма предоплат</th>
@@ -177,14 +179,15 @@
                 </div>
 
                 <div class="card">
-                    <h2>Результаты</h2>
+                    <h2>Результаты (с группировкой по ФГ)</h2>
                     <div class="table-wrapper">
                         <table id="report-table">
                             <thead>
                                 <tr>
-                                    <th>Менеджер</th>
-                                    <th>Тип</th>
-                                    <th>ФГ</th>
+                                    <th>Менеджер / ФГ</th>
+                                    <th>Номер ФГ</th>
+                                    <th>Агент / Тип</th>
+                                    <th>Источник / ФГ</th>
                                     <th>Предоплаты</th>
                                     <th>Комиссия</th>
                                     <th>Milestone</th>

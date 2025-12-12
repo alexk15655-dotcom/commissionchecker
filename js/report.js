@@ -4,6 +4,7 @@ class ReportController {
         this.fgData = [];
         this.prepaymentsData = [];
         this.calculatedReport = [];
+        this.fgDetails = []; // Детали по ФГ
     }
 
     async loadData() {
@@ -20,6 +21,7 @@ class ReportController {
         }
 
         const commissionData = {};
+        const fgData = {}; // Данные по каждой ФГ
 
         // Расчет базовых комиссий
         this.prepaymentsData.forEach(payment => {
@@ -29,24 +31,11 @@ class ReportController {
                 return fgNumber == paymentNumber;
             });
 
-            if (!fg || !fg.manager) return;
+            if (!fg) return;
 
-            const managerId = fg.manager.id;
-            const managerName = fg.manager.name;
-            const managerType = fg.source === 'Recruiter' ? 'recruiter' : 'account';
-
-            if (!commissionData[managerId]) {
-                commissionData[managerId] = {
-                    managerId,
-                    managerName,
-                    managerType,
-                    totalPrepayments: 0,
-                    commission: 0,
-                    milestoneBonus: 0,
-                    fgCount: 0,
-                    appliedRules: []
-                };
-            }
+            const fgNumber = fg['Номер ФГ'] || fg['id'];
+            const fgName = fg['ФГ'] || 'Без названия';
+            const agent = fg.agent || app.extractAgentName(fgName);
 
             // Парсинг суммы
             let amount = 0;
@@ -57,55 +46,98 @@ class ReportController {
                 amount = parseFloat(prepaymentStr) || 0;
             }
 
-            commissionData[managerId].totalPrepayments += amount;
-            commissionData[managerId].fgCount += 1;
-
-            // НОВАЯ ЛОГИКА: Находим ВСЕ правила для этого менеджера (общие + персональные)
-            const applicableRules = rulesCtrl.rules.filter(r => 
-                (r.managerIds && r.managerIds.includes(managerId)) // Групповые правила
-            );
-
-            // Добавляем персональные правила менеджера
-            const manager = managersCtrl.getAllManagers().find(m => m.id === managerId);
-            if (manager && manager.personRules) {
-                manager.personRules.forEach(personRule => {
-                    applicableRules.push({
-                        ...personRule,
-                        managerId: managerId,
-                        isPersonal: true
-                    });
-                });
+            // Инициализация данных по ФГ
+            if (!fgData[fgNumber]) {
+                fgData[fgNumber] = {
+                    fgNumber,
+                    fgName,
+                    agent,
+                    manager: fg.manager,
+                    source: fg.source,
+                    totalPrepayments: 0,
+                    commission: 0
+                };
             }
 
-            // Суммируем комиссии от всех правил
-            if (applicableRules.length > 0) {
-                applicableRules.forEach(rule => {
-                    let ruleCommission = 0;
-                    
-                    if (rule.commissionType === 'percentage') {
-                        ruleCommission = (amount * rule.value) / 100;
-                        if (rule.maxAmount) {
-                            ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+            fgData[fgNumber].totalPrepayments += amount;
+
+            // Если есть менеджер - начисляем комиссию
+            if (fg.manager) {
+                const managerId = fg.manager.id;
+                const managerName = fg.manager.name;
+                const managerType = fg.source === 'Recruiter' ? 'recruiter' : 'account';
+
+                if (!commissionData[managerId]) {
+                    commissionData[managerId] = {
+                        managerId,
+                        managerName,
+                        managerType,
+                        agent,
+                        totalPrepayments: 0,
+                        commission: 0,
+                        milestoneBonus: 0,
+                        fgCount: 0,
+                        fgList: [],
+                        appliedRules: []
+                    };
+                }
+
+                commissionData[managerId].totalPrepayments += amount;
+                commissionData[managerId].fgCount += 1;
+                
+                // Добавляем ФГ в список
+                if (!commissionData[managerId].fgList.includes(fgNumber)) {
+                    commissionData[managerId].fgList.push(fgNumber);
+                }
+
+                // Находим ВСЕ правила для этого менеджера
+                const applicableRules = rulesCtrl.rules.filter(r => 
+                    (r.managerIds && r.managerIds.includes(managerId))
+                );
+
+                // Добавляем персональные правила менеджера
+                const manager = managersCtrl.getAllManagers().find(m => m.id === managerId);
+                if (manager && manager.personRules) {
+                    manager.personRules.forEach(personRule => {
+                        applicableRules.push({
+                            ...personRule,
+                            managerId: managerId,
+                            isPersonal: true
+                        });
+                    });
+                }
+
+                // Суммируем комиссии от всех правил
+                let fgCommission = 0;
+                if (applicableRules.length > 0) {
+                    applicableRules.forEach(rule => {
+                        let ruleCommission = 0;
+                        
+                        if (rule.commissionType === 'percentage') {
+                            ruleCommission = (amount * rule.value) / 100;
+                            if (rule.maxAmount) {
+                                ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+                            }
+                        } else if (rule.commissionType === 'fixed') {
+                            ruleCommission = rule.value;
+                        } else if (rule.commissionType === 'percentageWithCap') {
+                            ruleCommission = (amount * rule.value) / 100;
+                            if (rule.maxAmount) {
+                                ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+                            }
                         }
-                    } else if (rule.commissionType === 'fixed') {
-                        ruleCommission = rule.value;
-                    } else if (rule.commissionType === 'percentageWithCap') {
-                        ruleCommission = (amount * rule.value) / 100;
-                        if (rule.maxAmount) {
-                            ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+                        
+                        fgCommission += ruleCommission;
+                        
+                        // Записываем примененное правило
+                        if (!commissionData[managerId].appliedRules.find(r => r.id === rule.id)) {
+                            commissionData[managerId].appliedRules.push(rule);
                         }
-                    }
-                    
-                    commissionData[managerId].commission += ruleCommission;
-                    
-                    // Записываем примененное правило
-                    if (!commissionData[managerId].appliedRules.find(r => r.id === rule.id)) {
-                        commissionData[managerId].appliedRules.push(rule);
-                    }
-                });
-            } else {
-                // Если нет правил - комиссия = 0 (стартовая комиссия больше не используется)
-                commissionData[managerId].commission += 0;
+                    });
+                }
+
+                commissionData[managerId].commission += fgCommission;
+                fgData[fgNumber].commission = fgCommission;
             }
         });
 
@@ -139,6 +171,7 @@ class ReportController {
         });
 
         this.calculatedReport = Object.values(commissionData);
+        this.fgDetails = Object.values(fgData);
         this.render();
     }
 
@@ -146,26 +179,61 @@ class ReportController {
         const tbody = document.getElementById('report-tbody');
         
         if (this.calculatedReport.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">Загрузите данные для расчета комиссий</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">Загрузите данные для расчета комиссий</td></tr>';
             this.updateStats(0, 0, 0);
             return;
         }
 
-        tbody.innerHTML = this.calculatedReport.map(comm => {
-            const total = comm.commission + comm.milestoneBonus;
+        // Группируем по менеджерам, внутри - по ФГ
+        let html = '';
+        
+        this.calculatedReport.forEach(comm => {
+            const managerTotal = comm.commission + comm.milestoneBonus;
             
-            return `
-                <tr>
-                    <td>${comm.managerName}</td>
-                    <td style="text-transform: capitalize; color: var(--text-secondary);">${comm.managerType}</td>
-                    <td style="text-align: right;">${comm.fgCount}</td>
-                    <td style="text-align: right; color: var(--accent-primary); font-family: monospace;">$${comm.totalPrepayments.toFixed(2)}</td>
+            // Заголовок менеджера
+            html += `
+                <tr style="background: var(--bg-tertiary); font-weight: 600;">
+                    <td colspan="2">${comm.managerName}</td>
+                    <td style="text-transform: capitalize;">${comm.managerType}</td>
+                    <td style="text-align: right;">${comm.fgCount} ФГ</td>
+                    <td style="text-align: right; font-family: monospace;">$${comm.totalPrepayments.toFixed(2)}</td>
                     <td style="text-align: right; color: var(--success); font-family: monospace;">$${comm.commission.toFixed(2)}</td>
                     <td style="text-align: right; color: #a78bfa; font-family: monospace;">$${comm.milestoneBonus.toFixed(2)}</td>
-                    <td style="text-align: right; color: var(--success); font-family: monospace; font-weight: 600;">$${total.toFixed(2)}</td>
+                    <td style="text-align: right; color: var(--success); font-family: monospace; font-weight: 700;">$${managerTotal.toFixed(2)}</td>
                 </tr>
             `;
-        }).join('');
+            
+            // Детали по ФГ
+            comm.fgList.forEach(fgNumber => {
+                const fgDetail = this.fgDetails.find(f => f.fgNumber == fgNumber);
+                if (fgDetail) {
+                    html += `
+                        <tr style="background: var(--bg-primary); opacity: 0.9;">
+                            <td style="padding-left: 2rem; font-size: 0.9rem; color: var(--text-secondary);">└ ${fgDetail.fgName}</td>
+                            <td style="font-size: 0.85rem; color: var(--text-tertiary);">${fgDetail.fgNumber}</td>
+                            <td style="font-size: 0.85rem; color: var(--accent-secondary);">${fgDetail.agent}</td>
+                            <td>
+                                <span style="
+                                    padding: 0.15rem 0.4rem; 
+                                    border-radius: 3px; 
+                                    font-size: 0.75rem;
+                                    background: ${fgDetail.source === 'Recruiter' || fgDetail.source === 'Account' ? 'var(--accent-primary)' : 'var(--bg-tertiary)'};
+                                    color: ${fgDetail.source === 'Recruiter' || fgDetail.source === 'Account' ? '#0f172a' : 'var(--text-primary)'};
+                                ">
+                                    ${fgDetail.source}
+                                </span>
+                            </td>
+                            <td style="text-align: right; font-family: monospace; font-size: 0.9rem;">$${fgDetail.totalPrepayments.toFixed(2)}</td>
+                            <td style="text-align: right; font-family: monospace; font-size: 0.9rem;">$${fgDetail.commission.toFixed(2)}</td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    `;
+                }
+            });
+        });
+
+        tbody.innerHTML = html;
 
         const totalPrepayments = this.calculatedReport.reduce((sum, c) => sum + c.totalPrepayments, 0);
         const totalCommissions = this.calculatedReport.reduce((sum, c) => sum + c.commission + c.milestoneBonus, 0);

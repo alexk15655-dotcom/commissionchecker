@@ -105,13 +105,15 @@ class FgController {
         const tbody = document.getElementById('fg-tbody');
         
         if (this.fgData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">Загрузите данные по ФГ</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">Загрузите данные по ФГ</td></tr>';
             return;
         }
 
         tbody.innerHTML = this.fgData.map(fg => {
             const fgName = fg['ФГ'] || 'Без названия';
             const fgNumber = fg['Номер ФГ'] || fg['id'] || '—';
+            const agent = fg.agent || app.extractAgentName(fgName);
+            const ref = fg['Реф'] || '—';
             const source = fg.source || '—';
             const managerName = fg.manager ? fg.manager.name : '—';
             
@@ -121,6 +123,8 @@ class FgController {
                 <tr>
                     <td>${fgName}</td>
                     <td>${fgNumber}</td>
+                    <td style="font-weight: 500; color: var(--accent-secondary);">${agent}</td>
+                    <td style="font-size: 0.85rem; color: var(--text-tertiary);">${ref}</td>
                     <td>
                         <span style="
                             padding: 0.25rem 0.5rem; 

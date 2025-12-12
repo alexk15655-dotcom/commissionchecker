@@ -147,7 +147,7 @@ class RulesController {
             const rule = {
                 name,
                 managerType,
-                managerIds, // Массив ID менеджеров
+                managerIds,
                 commissionType,
                 value,
                 maxAmount,
