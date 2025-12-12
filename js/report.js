@@ -43,7 +43,8 @@ class ReportController {
                     totalPrepayments: 0,
                     commission: 0,
                     milestoneBonus: 0,
-                    fgCount: 0
+                    fgCount: 0,
+                    appliedRules: []
                 };
             }
 
@@ -59,28 +60,52 @@ class ReportController {
             commissionData[managerId].totalPrepayments += amount;
             commissionData[managerId].fgCount += 1;
 
-            // Поиск правила для менеджера
-            const rule = rulesCtrl.rules.find(r => 
-                r.managerId === managerId && 
-                r.managerType === managerType
+            // НОВАЯ ЛОГИКА: Находим ВСЕ правила для этого менеджера (общие + персональные)
+            const applicableRules = rulesCtrl.rules.filter(r => 
+                (r.managerIds && r.managerIds.includes(managerId)) // Групповые правила
             );
 
-            const commissionRate = rule ? rule.value : (fg.commission || 5);
+            // Добавляем персональные правила менеджера
+            const manager = managersCtrl.getAllManagers().find(m => m.id === managerId);
+            if (manager && manager.personRules) {
+                manager.personRules.forEach(personRule => {
+                    applicableRules.push({
+                        ...personRule,
+                        managerId: managerId,
+                        isPersonal: true
+                    });
+                });
+            }
 
-            if (!rule || rule.commissionType === 'percentage') {
-                let comm = (amount * commissionRate) / 100;
-                if (rule && rule.maxAmount) {
-                    comm = Math.min(comm, rule.maxAmount);
-                }
-                commissionData[managerId].commission += comm;
-            } else if (rule.commissionType === 'fixed') {
-                commissionData[managerId].commission += rule.value;
-            } else if (rule.commissionType === 'percentageWithCap') {
-                let comm = (amount * commissionRate) / 100;
-                if (rule.maxAmount) {
-                    comm = Math.min(comm, rule.maxAmount);
-                }
-                commissionData[managerId].commission += comm;
+            // Суммируем комиссии от всех правил
+            if (applicableRules.length > 0) {
+                applicableRules.forEach(rule => {
+                    let ruleCommission = 0;
+                    
+                    if (rule.commissionType === 'percentage') {
+                        ruleCommission = (amount * rule.value) / 100;
+                        if (rule.maxAmount) {
+                            ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+                        }
+                    } else if (rule.commissionType === 'fixed') {
+                        ruleCommission = rule.value;
+                    } else if (rule.commissionType === 'percentageWithCap') {
+                        ruleCommission = (amount * rule.value) / 100;
+                        if (rule.maxAmount) {
+                            ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+                        }
+                    }
+                    
+                    commissionData[managerId].commission += ruleCommission;
+                    
+                    // Записываем примененное правило
+                    if (!commissionData[managerId].appliedRules.find(r => r.id === rule.id)) {
+                        commissionData[managerId].appliedRules.push(rule);
+                    }
+                });
+            } else {
+                // Если нет правил - комиссия = 0 (стартовая комиссия больше не используется)
+                commissionData[managerId].commission += 0;
             }
         });
 

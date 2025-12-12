@@ -21,6 +21,7 @@
             <button class="tab" data-tab="managers">Менеджеры</button>
             <button class="tab" data-tab="rules">Правила комиссий</button>
             <button class="tab" data-tab="milestones">Milestones</button>
+            <button class="tab" data-tab="fg">ФГ</button>
             <button class="tab" data-tab="report">Отчет</button>
         </nav>
 
@@ -119,6 +120,31 @@
                 </div>
             </section>
 
+            <!-- FG Tab -->
+            <section id="fg-tab" class="tab-content">
+                <div class="card">
+                    <h2>Финансовые группы</h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Просмотр всех ФГ с источниками, менеджерами и статистикой по предоплатам
+                    </p>
+                    <div class="table-wrapper">
+                        <table id="fg-table">
+                            <thead>
+                                <tr>
+                                    <th>ФГ</th>
+                                    <th>Номер ФГ</th>
+                                    <th>Источник</th>
+                                    <th>Менеджер</th>
+                                    <th>Сумма предоплат</th>
+                                    <th>Выплачено комиссии</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fg-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- Report Tab -->
             <section id="report-tab" class="tab-content">
                 <div class="card">
@@ -186,6 +212,7 @@
     <script src="js/managers.js"></script>
     <script src="js/rules.js"></script>
     <script src="js/milestones.js"></script>
+    <script src="js/fg.js"></script>
     <script src="js/report.js"></script>
     <script src="js/app.js"></script>
 </body>

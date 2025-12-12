@@ -27,6 +27,7 @@ class RulesController {
         
         const recruiters = managersCtrl.recruiters;
         const accounts = managersCtrl.accountManagers;
+        const defaultCommission = app.defaultCommission;
         
         modalBody.innerHTML = `
             <h2>Новое правило комиссии</h2>
@@ -45,10 +46,10 @@ class RulesController {
             </div>
 
             <div class="form-group">
-                <label>Менеджер</label>
-                <select id="rule-manager-id">
-                    <option value="">Выберите...</option>
-                </select>
+                <label>Выбор менеджеров (можно несколько)</label>
+                <div class="checkbox-group" id="managers-checkboxes">
+                    <!-- Заполнится динамически -->
+                </div>
             </div>
 
             <div class="form-group">
@@ -62,7 +63,7 @@ class RulesController {
 
             <div class="form-group">
                 <label id="rule-value-label">Процент (%)</label>
-                <input type="number" id="rule-value" value="5" step="0.1" min="0">
+                <input type="number" id="rule-value" value="${defaultCommission}" step="0.1" min="0">
             </div>
 
             <div class="form-group" id="rule-max-group" style="display: none;">
@@ -87,14 +88,18 @@ class RulesController {
 
         // Динамическое обновление списка менеджеров
         const managerTypeSelect = document.getElementById('rule-manager-type');
-        const managerIdSelect = document.getElementById('rule-manager-id');
+        const managersCheckboxes = document.getElementById('managers-checkboxes');
         
         const updateManagersList = () => {
             const type = managerTypeSelect.value;
             const managers = type === 'recruiter' ? recruiters : accounts;
             
-            managerIdSelect.innerHTML = '<option value="">Выберите...</option>' + 
-                managers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+            managersCheckboxes.innerHTML = managers.map(m => `
+                <label>
+                    <input type="checkbox" value="${m.id}" class="manager-checkbox">
+                    ${m.name}
+                </label>
+            `).join('');
         };
         
         updateManagersList();
@@ -122,7 +127,11 @@ class RulesController {
         document.getElementById('save-rule-btn').addEventListener('click', async () => {
             const name = document.getElementById('rule-name').value.trim();
             const managerType = document.getElementById('rule-manager-type').value;
-            const managerId = parseInt(document.getElementById('rule-manager-id').value);
+            
+            // Собираем выбранных менеджеров
+            const selectedCheckboxes = document.querySelectorAll('.manager-checkbox:checked');
+            const managerIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
+            
             const commissionType = document.getElementById('rule-commission-type').value;
             const value = parseFloat(document.getElementById('rule-value').value);
             const maxAmount = document.getElementById('rule-max-amount').value ? 
@@ -130,15 +139,15 @@ class RulesController {
             const startDate = document.getElementById('rule-start-date').value;
             const endDate = document.getElementById('rule-end-date').value;
 
-            if (!name || !managerId || !startDate || !endDate) {
-                alert('Заполните все обязательные поля');
+            if (!name || managerIds.length === 0 || !startDate || !endDate) {
+                alert('Заполните все обязательные поля и выберите хотя бы одного менеджера');
                 return;
             }
 
             const rule = {
                 name,
                 managerType,
-                managerId,
+                managerIds, // Массив ID менеджеров
                 commissionType,
                 value,
                 maxAmount,
@@ -184,15 +193,16 @@ class RulesController {
         }
 
         container.innerHTML = this.rules.map(rule => {
-            const manager = managersCtrl.getAllManagers().find(m => m.id === rule.managerId);
-            const managerName = manager ? manager.name : 'Неизвестно';
+            const allManagers = managersCtrl.getAllManagers();
+            const assignedManagers = allManagers.filter(m => rule.managerIds && rule.managerIds.includes(m.id));
+            const managerNames = assignedManagers.map(m => m.name).join(', ') || 'Неизвестно';
             
             return `
                 <div class="rule-item">
                     <div class="rule-header">
                         <div>
                             <h3 class="rule-title">${rule.name}</h3>
-                            <p style="color: var(--text-secondary); margin-top: 0.25rem;">${managerName}</p>
+                            <p style="color: var(--text-secondary); margin-top: 0.25rem;">${managerNames}</p>
                         </div>
                         <button class="btn btn-small btn-danger" onclick="rulesCtrl.deleteRule(${rule.id})">Удалить</button>
                     </div>
@@ -200,6 +210,10 @@ class RulesController {
                         <div class="rule-detail">
                             <span class="rule-detail-label">Тип менеджера</span>
                             <span class="rule-detail-value">${rule.managerType === 'recruiter' ? 'Recruiter' : 'Account Manager'}</span>
+                        </div>
+                        <div class="rule-detail">
+                            <span class="rule-detail-label">Менеджеров</span>
+                            <span class="rule-detail-value">${assignedManagers.length}</span>
                         </div>
                         <div class="rule-detail">
                             <span class="rule-detail-label">Комиссия</span>

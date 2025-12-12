@@ -168,8 +168,12 @@ class ManagersController {
                     <div class="manager-info">
                         <h4>${manager.name}</h4>
                         <p>Начало: ${manager.startDate}</p>
+                        <p style="font-size: 0.8rem; color: var(--text-tertiary);">
+                            Персональных правил: ${(manager.personRules || []).length}
+                        </p>
                     </div>
                     <div class="manager-actions">
+                        <button class="btn btn-small btn-primary" onclick="managersCtrl.manageRules(${manager.id})">Правила</button>
                         <button class="btn btn-small btn-primary" onclick="managersCtrl.startEdit(${manager.id})">Изменить</button>
                         <button class="btn btn-small btn-danger" onclick="managersCtrl.deleteManager(${manager.id}, '${manager.type}')">Удалить</button>
                     </div>
@@ -207,6 +211,154 @@ class ManagersController {
 
         await this.updateManager(id, { name, startDate });
         this.cancelEdit(id);
+    }
+
+    manageRules(managerId) {
+        const manager = this.getAllManagers().find(m => m.id === managerId);
+        if (!manager) return;
+
+        const modal = document.getElementById('modal');
+        const modalBody = document.getElementById('modal-body');
+        const defaultCommission = app.defaultCommission;
+
+        modalBody.innerHTML = `
+            <h2>Правила для ${manager.name}</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Персональные правила суммируются с общими правилами</p>
+            
+            <div id="person-rules-list" style="margin-bottom: 1rem;">
+                ${(manager.personRules || []).map((rule, idx) => `
+                    <div class="rule-item" style="margin-bottom: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <strong>${rule.name}</strong>
+                                <p style="font-size: 0.9rem; color: var(--text-tertiary);">
+                                    ${rule.commissionType === 'fixed' ? `$${rule.value}` : `${rule.value}%`}
+                                    ${rule.maxAmount ? ` (макс. $${rule.maxAmount})` : ''}
+                                </p>
+                            </div>
+                            <button class="btn btn-small btn-danger" onclick="managersCtrl.deletePersonRule(${managerId}, ${idx})">×</button>
+                        </div>
+                    </div>
+                `).join('') || '<p style="color: var(--text-tertiary);">Персональные правила не добавлены</p>'}
+            </div>
+
+            <hr style="border-color: var(--border); margin: 1.5rem 0;">
+            
+            <h3>Добавить правило</h3>
+            <div class="form-group">
+                <label>Название</label>
+                <input type="text" id="person-rule-name" placeholder="Например: Бонус за активность">
+            </div>
+            <div class="form-group">
+                <label>Тип комиссии</label>
+                <select id="person-rule-type">
+                    <option value="percentage">Процент</option>
+                    <option value="fixed">Фикс</option>
+                    <option value="percentageWithCap">Процент с ограничением</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label id="person-rule-value-label">Процент (%)</label>
+                <input type="number" id="person-rule-value" value="${defaultCommission}" step="0.1" min="0">
+            </div>
+            <div class="form-group" id="person-rule-max-group" style="display: none;">
+                <label>Макс. сумма ($)</label>
+                <input type="number" id="person-rule-max" step="0.01" min="0">
+            </div>
+            <button class="btn btn-primary" onclick="managersCtrl.addPersonRule(${managerId})">Добавить правило</button>
+        `;
+
+        modal.classList.add('active');
+
+        // Динамика типа комиссии
+        document.getElementById('person-rule-type').addEventListener('change', (e) => {
+            const type = e.target.value;
+            const label = document.getElementById('person-rule-value-label');
+            const maxGroup = document.getElementById('person-rule-max-group');
+            
+            if (type === 'fixed') {
+                label.textContent = 'Сумма ($)';
+                maxGroup.style.display = 'none';
+            } else if (type === 'percentageWithCap') {
+                label.textContent = 'Процент (%)';
+                maxGroup.style.display = 'block';
+            } else {
+                label.textContent = 'Процент (%)';
+                maxGroup.style.display = 'none';
+            }
+        });
+
+        document.querySelector('.modal-close').addEventListener('click', () => {
+            modal.classList.remove('active');
+            this.render();
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+                this.render();
+            }
+        });
+    }
+
+    async addPersonRule(managerId) {
+        const name = document.getElementById('person-rule-name').value.trim();
+        const commissionType = document.getElementById('person-rule-type').value;
+        const value = parseFloat(document.getElementById('person-rule-value').value);
+        const maxAmount = document.getElementById('person-rule-max').value ? 
+            parseFloat(document.getElementById('person-rule-max').value) : null;
+
+        if (!name) {
+            alert('Введите название правила');
+            return;
+        }
+
+        const manager = this.getAllManagers().find(m => m.id === managerId);
+        if (!manager) return;
+
+        if (!manager.personRules) manager.personRules = [];
+        
+        manager.personRules.push({
+            id: Date.now(),
+            name,
+            commissionType,
+            value,
+            maxAmount
+        });
+
+        await db.update('managers', manager);
+        
+        // Обновляем в памяти
+        if (manager.type === 'recruiter') {
+            const idx = this.recruiters.findIndex(m => m.id === managerId);
+            if (idx !== -1) this.recruiters[idx] = manager;
+        } else {
+            const idx = this.accountManagers.findIndex(m => m.id === managerId);
+            if (idx !== -1) this.accountManagers[idx] = manager;
+        }
+
+        // Обновляем модальное окно
+        this.manageRules(managerId);
+    }
+
+    async deletePersonRule(managerId, ruleIdx) {
+        const manager = this.getAllManagers().find(m => m.id === managerId);
+        if (!manager || !manager.personRules) return;
+
+        manager.personRules.splice(ruleIdx, 1);
+        await db.update('managers', manager);
+
+        // Обновляем в памяти
+        if (manager.type === 'recruiter') {
+            const idx = this.recruiters.findIndex(m => m.id === managerId);
+            if (idx !== -1) this.recruiters[idx] = manager;
+        } else {
+            const idx = this.accountManagers.findIndex(m => m.id === managerId);
+            if (idx !== -1) this.accountManagers[idx] = manager;
+        }
+
+        // Обновляем модальное окно
+        this.manageRules(managerId);
     }
 
     getAllManagers() {

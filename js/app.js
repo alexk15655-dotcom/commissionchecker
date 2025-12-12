@@ -21,6 +21,7 @@ class App {
         managersCtrl = new ManagersController();
         rulesCtrl = new RulesController();
         milestonesCtrl = new MilestonesController();
+        fgCtrl = new FgController();
         reportCtrl = new ReportController();
 
         // Применение темы
@@ -129,8 +130,10 @@ class App {
         document.getElementById(`${tabName}-tab`).classList.add('active');
         document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
-        // Пересчитать отчет при переходе на таб отчета
-        if (tabName === 'report') {
+        // Пересчитать данные при переходе на таб
+        if (tabName === 'fg') {
+            fgCtrl.render();
+        } else if (tabName === 'report') {
             reportCtrl.calculate();
         }
     }
