@@ -58,6 +58,8 @@ class RulesController {
                     <option value="percentage">Процент</option>
                     <option value="fixed">Фикс</option>
                     <option value="percentageWithCap">Процент с ограничением</option>
+                    <option value="firstPrepaymentOnly">Только за первую предоплату агента</option>
+                    <option value="earlyFgWithThreshold">За раннюю ФГ при достижении суммы</option>
                 </select>
             </div>
 
@@ -69,6 +71,19 @@ class RulesController {
             <div class="form-group" id="rule-max-group" style="display: none;">
                 <label>Максимальная сумма ($)</label>
                 <input type="number" id="rule-max-amount" step="0.01" min="0">
+            </div>
+
+            <div class="form-group" id="rule-threshold-group" style="display: none;">
+                <label>Минимальная сумма группы для начисления ($)</label>
+                <input type="number" id="rule-threshold" step="0.01" min="0" placeholder="Например: 1000">
+                <small style="color: var(--text-tertiary); display: block; margin-top: 0.25rem;">
+                    Комиссия начисляется за предоплаты самой ранней ФГ только при достижении указанной суммы по всей группе агента
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>Применять только в период отчёта</label>
+                <input type="checkbox" id="rule-period-only" style="width: auto; margin-left: 0.5rem;">
             </div>
 
             <div class="form-group">
@@ -109,18 +124,30 @@ class RulesController {
         const commissionTypeSelect = document.getElementById('rule-commission-type');
         const valueLabel = document.getElementById('rule-value-label');
         const maxGroup = document.getElementById('rule-max-group');
+        const thresholdGroup = document.getElementById('rule-threshold-group');
         
         commissionTypeSelect.addEventListener('change', (e) => {
             const type = e.target.value;
             if (type === 'fixed') {
                 valueLabel.textContent = 'Сумма ($)';
                 maxGroup.style.display = 'none';
+                thresholdGroup.style.display = 'none';
             } else if (type === 'percentageWithCap') {
                 valueLabel.textContent = 'Процент (%)';
                 maxGroup.style.display = 'block';
+                thresholdGroup.style.display = 'none';
+            } else if (type === 'firstPrepaymentOnly') {
+                valueLabel.textContent = 'Процент (%) за первую предоплату';
+                maxGroup.style.display = 'none';
+                thresholdGroup.style.display = 'none';
+            } else if (type === 'earlyFgWithThreshold') {
+                valueLabel.textContent = 'Процент (%) за раннюю ФГ';
+                maxGroup.style.display = 'none';
+                thresholdGroup.style.display = 'block';
             } else {
                 valueLabel.textContent = 'Процент (%)';
                 maxGroup.style.display = 'none';
+                thresholdGroup.style.display = 'none';
             }
         });
 
@@ -136,8 +163,11 @@ class RulesController {
             const value = parseFloat(document.getElementById('rule-value').value);
             const maxAmount = document.getElementById('rule-max-amount').value ? 
                 parseFloat(document.getElementById('rule-max-amount').value) : null;
+            const threshold = document.getElementById('rule-threshold').value ?
+                parseFloat(document.getElementById('rule-threshold').value) : null;
             const startDate = document.getElementById('rule-start-date').value;
             const endDate = document.getElementById('rule-end-date').value;
+            const periodOnly = document.getElementById('rule-period-only').checked;
 
             if (!name || managerIds.length === 0 || !startDate || !endDate) {
                 alert('Заполните все обязательные поля и выберите хотя бы одного менеджера');
@@ -151,8 +181,10 @@ class RulesController {
                 commissionType,
                 value,
                 maxAmount,
+                threshold,
                 startDate,
-                endDate
+                endDate,
+                periodOnly
             };
 
             await this.addRule(rule);
@@ -197,6 +229,13 @@ class RulesController {
             const assignedManagers = allManagers.filter(m => rule.managerIds && rule.managerIds.includes(m.id));
             const managerNames = assignedManagers.map(m => m.name).join(', ') || 'Неизвестно';
             
+            let commissionTypeLabel = '';
+            if (rule.commissionType === 'percentage') commissionTypeLabel = 'Процент';
+            else if (rule.commissionType === 'fixed') commissionTypeLabel = 'Фикс';
+            else if (rule.commissionType === 'percentageWithCap') commissionTypeLabel = 'Процент с кэпом';
+            else if (rule.commissionType === 'firstPrepaymentOnly') commissionTypeLabel = 'Первая предоплата';
+            else if (rule.commissionType === 'earlyFgWithThreshold') commissionTypeLabel = 'Ранняя ФГ с порогом';
+            
             return `
                 <div class="rule-item">
                     <div class="rule-header">
@@ -207,6 +246,10 @@ class RulesController {
                         <button class="btn btn-small btn-danger" onclick="rulesCtrl.deleteRule(${rule.id})">Удалить</button>
                     </div>
                     <div class="rule-details">
+                        <div class="rule-detail">
+                            <span class="rule-detail-label">Тип</span>
+                            <span class="rule-detail-value">${commissionTypeLabel}</span>
+                        </div>
                         <div class="rule-detail">
                             <span class="rule-detail-label">Тип менеджера</span>
                             <span class="rule-detail-value">${rule.managerType === 'recruiter' ? 'Recruiter' : 'Account Manager'}</span>
@@ -220,12 +263,14 @@ class RulesController {
                             <span class="rule-detail-value">
                                 ${rule.commissionType === 'fixed' ? `$${rule.value}` : `${rule.value}%`}
                                 ${rule.maxAmount ? ` (макс. $${rule.maxAmount})` : ''}
+                                ${rule.threshold ? ` [порог: $${rule.threshold}]` : ''}
                             </span>
                         </div>
                         <div class="rule-detail">
                             <span class="rule-detail-label">Период</span>
                             <span class="rule-detail-value">${rule.startDate} — ${rule.endDate}</span>
                         </div>
+                        ${rule.periodOnly ? '<div class="rule-detail"><span class="rule-detail-label">Только в периоде отчёта</span><span class="rule-detail-value">✓</span></div>' : ''}
                     </div>
                 </div>
             `;

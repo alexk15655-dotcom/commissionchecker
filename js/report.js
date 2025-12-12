@@ -24,16 +24,78 @@ class ReportController {
         const commissionData = {};
         const fgData = {};
         const agentFirstPrepayments = {};
+        const agentGroups = {}; // Группы агентов с их ФГ
+        const agentManagers = {}; // Менеджеры по агентам
 
         const startDateStr = document.getElementById('report-start-date').value;
         const endDateStr = document.getElementById('report-end-date').value;
         const startDate = startDateStr ? new Date(startDateStr) : null;
         const endDate = endDateStr ? new Date(endDateStr) : null;
 
+        // Группируем ФГ по агентам и определяем менеджера группы
+        this.fgData.forEach(fg => {
+            const fgName = fg['ФГ'] || 'Без названия';
+            const agent = fg.agent || app.extractAgentName(fgName);
+            
+            if (!agentGroups[agent]) {
+                agentGroups[agent] = [];
+            }
+            agentGroups[agent].push(fg);
+
+            // Если у ФГ есть менеджер (Recruiter/Account) - он становится менеджером группы
+            if (fg.manager && !agentManagers[agent]) {
+                agentManagers[agent] = fg.manager;
+            }
+        });
+
         const sortedPrepayments = [...this.prepaymentsData].sort((a, b) => {
             const dateA = new Date(a['Период'] || '1970-01-01');
             const dateB = new Date(b['Период'] || '1970-01-01');
             return dateA - dateB;
+        });
+
+        // Подсчитываем суммы по агентам для правил с порогом
+        const agentTotals = {};
+        sortedPrepayments.forEach(payment => {
+            const fg = this.fgData.find(f => {
+                const fgNumber = f['Номер ФГ'] || f['id'];
+                const paymentNumber = payment['Номер фин. группы'];
+                return fgNumber == paymentNumber;
+            });
+
+            if (!fg) return;
+
+            const fgName = fg['ФГ'] || 'Без названия';
+            const agent = fg.agent || app.extractAgentName(fgName);
+
+            let amount = 0;
+            const prepaymentStr = payment['Пополнения $'] || payment['Пополнения'] || '0';
+            if (typeof prepaymentStr === 'string') {
+                amount = parseFloat(prepaymentStr.replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+            } else {
+                amount = parseFloat(prepaymentStr) || 0;
+            }
+
+            if (!agentTotals[agent]) {
+                agentTotals[agent] = 0;
+            }
+            agentTotals[agent] += amount;
+        });
+
+        // Определяем самую раннюю ФГ с менеджером для каждого агента
+        const agentEarliestManagedFg = {};
+        Object.keys(agentGroups).forEach(agent => {
+            const fgsWithManager = agentGroups[agent]
+                .filter(fg => fg.manager)
+                .sort((a, b) => {
+                    const dateA = new Date(a['Начало работы'] || '9999-12-31');
+                    const dateB = new Date(b['Начало работы'] || '9999-12-31');
+                    return dateA - dateB;
+                });
+            
+            if (fgsWithManager.length > 0) {
+                agentEarliestManagedFg[agent] = fgsWithManager[0]['Номер ФГ'] || fgsWithManager[0]['id'];
+            }
         });
 
         sortedPrepayments.forEach(payment => {
@@ -82,120 +144,158 @@ class ReportController {
 
             fgData[fgNumber].totalPrepayments += amount;
 
-            if (fg.manager) {
-                const managerId = fg.manager.id;
-                const managerName = fg.manager.name;
-                const managerType = fg.source === 'Recruiter' ? 'recruiter' : 'account';
+            // КЛЮЧЕВАЯ ЛОГИКА: Если в группе есть менеджер, то начисляем комиссию
+            // только ФГ с этим менеджером (или ранней ФГ при достижении порога)
+            const groupManager = agentManagers[agent];
+            
+            if (groupManager) {
+                // Проверяем: эта ФГ имеет того же менеджера или это ранняя ФГ при earlyFgWithThreshold
+                const shouldCalculateCommission = fg.manager && fg.manager.id === groupManager.id;
 
-                if (!commissionData[managerId]) {
-                    commissionData[managerId] = {
-                        managerId,
-                        managerName,
-                        managerType,
-                        agent,
-                        totalPrepayments: 0,
-                        commission: 0,
-                        milestoneBonus: 0,
-                        fgCount: 0,
-                        fgList: [],
-                        appliedRules: []
-                    };
-                }
+                if (shouldCalculateCommission) {
+                    const managerId = groupManager.id;
+                    const managerName = groupManager.name;
+                    const managerType = fg.source === 'Recruiter' ? 'recruiter' : 'account';
 
-                commissionData[managerId].totalPrepayments += amount;
-                commissionData[managerId].fgCount += 1;
-                
-                if (!commissionData[managerId].fgList.includes(fgNumber)) {
-                    commissionData[managerId].fgList.push(fgNumber);
-                }
+                    if (!commissionData[managerId]) {
+                        commissionData[managerId] = {
+                            managerId,
+                            managerName,
+                            managerType,
+                            totalPrepayments: 0,
+                            commission: 0,
+                            milestoneBonus: 0,
+                            fgCount: 0,
+                            fgList: [],
+                            agentsList: new Set(),
+                            appliedRules: []
+                        };
+                    }
 
-                const applicableRules = rulesCtrl.rules.filter(r => 
-                    (r.managerIds && r.managerIds.includes(managerId))
-                );
+                    commissionData[managerId].totalPrepayments += amount;
+                    commissionData[managerId].agentsList.add(agent);
+                    
+                    if (!commissionData[managerId].fgList.includes(fgNumber)) {
+                        commissionData[managerId].fgList.push(fgNumber);
+                        commissionData[managerId].fgCount += 1;
+                    }
 
-                const manager = managersCtrl.getAllManagers().find(m => m.id === managerId);
-                if (manager && manager.personRules) {
-                    manager.personRules.forEach(personRule => {
-                        applicableRules.push({
-                            ...personRule,
-                            managerId: managerId,
-                            isPersonal: true
+                    const applicableRules = rulesCtrl.rules.filter(r => 
+                        (r.managerIds && r.managerIds.includes(managerId))
+                    );
+
+                    const manager = managersCtrl.getAllManagers().find(m => m.id === managerId);
+                    if (manager && manager.personRules) {
+                        manager.personRules.forEach(personRule => {
+                            applicableRules.push({
+                                ...personRule,
+                                managerId: managerId,
+                                isPersonal: true
+                            });
                         });
-                    });
-                }
+                    }
 
-                let fgCommission = 0;
-                if (applicableRules.length > 0) {
-                    applicableRules.forEach(rule => {
-                        if (rule.periodOnly && !isInPeriod) {
-                            return;
-                        }
-
-                        if (rule.commissionType === 'firstPrepaymentOnly') {
-                            const firstPrepayment = agentFirstPrepayments[agent];
-                            if (!firstPrepayment || firstPrepayment.fgNumber !== fgNumber) {
-                                return;
-                            }
-                            
+                    let fgCommission = 0;
+                    if (applicableRules.length > 0) {
+                        applicableRules.forEach(rule => {
                             if (rule.periodOnly && !isInPeriod) {
                                 return;
                             }
-                        }
 
-                        let ruleCommission = 0;
-                        
-                        if (rule.commissionType === 'percentage' || rule.commissionType === 'firstPrepaymentOnly') {
-                            ruleCommission = (amount * rule.value) / 100;
-                            if (rule.maxAmount) {
-                                ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+                            // Правило "только первая предоплата агента"
+                            if (rule.commissionType === 'firstPrepaymentOnly') {
+                                const firstPrepayment = agentFirstPrepayments[agent];
+                                if (!firstPrepayment || firstPrepayment.fgNumber !== fgNumber) {
+                                    return;
+                                }
+                                
+                                if (rule.periodOnly && !isInPeriod) {
+                                    return;
+                                }
                             }
-                        } else if (rule.commissionType === 'fixed') {
-                            ruleCommission = rule.value;
-                        } else if (rule.commissionType === 'percentageWithCap') {
-                            ruleCommission = (amount * rule.value) / 100;
-                            if (rule.maxAmount) {
-                                ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+
+                            // Правило "ранняя ФГ при достижении порога"
+                            if (rule.commissionType === 'earlyFgWithThreshold') {
+                                // Проверяем: это ранняя ФГ с менеджером?
+                                const earliestFg = agentEarliestManagedFg[agent];
+                                if (!earliestFg || earliestFg !== fgNumber) {
+                                    return;
+                                }
+
+                                // Проверяем порог
+                                if (rule.threshold && agentTotals[agent] < rule.threshold) {
+                                    return;
+                                }
+
+                                if (rule.periodOnly && !isInPeriod) {
+                                    return;
+                                }
                             }
-                        }
-                        
-                        fgCommission += ruleCommission;
-                        
-                        if (!commissionData[managerId].appliedRules.find(r => r.id === rule.id)) {
-                            commissionData[managerId].appliedRules.push(rule);
-                        }
-                    });
+
+                            let ruleCommission = 0;
+                            
+                            if (rule.commissionType === 'percentage' || 
+                                rule.commissionType === 'firstPrepaymentOnly' ||
+                                rule.commissionType === 'earlyFgWithThreshold') {
+                                ruleCommission = (amount * rule.value) / 100;
+                                if (rule.maxAmount) {
+                                    ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+                                }
+                            } else if (rule.commissionType === 'fixed') {
+                                ruleCommission = rule.value;
+                            } else if (rule.commissionType === 'percentageWithCap') {
+                                ruleCommission = (amount * rule.value) / 100;
+                                if (rule.maxAmount) {
+                                    ruleCommission = Math.min(ruleCommission, rule.maxAmount);
+                                }
+                            }
+                            
+                            fgCommission += ruleCommission;
+                            
+                            if (!commissionData[managerId].appliedRules.find(r => r.id === rule.id)) {
+                                commissionData[managerId].appliedRules.push(rule);
+                            }
+                        });
+                    }
+
+                    commissionData[managerId].commission += fgCommission;
+                    fgData[fgNumber].commission = fgCommission;
                 }
-
-                commissionData[managerId].commission += fgCommission;
-                fgData[fgNumber].commission = fgCommission;
             }
         });
 
+        // Расчет milestone бонусов
+        // Milestones считаются по группам агентов: сумма всех ФГ в группе
         Object.values(commissionData).forEach(manager => {
-            milestonesCtrl.milestones.forEach(milestone => {
-                const isApplicable = 
-                    milestone.managerGroup === 'all' ||
-                    (milestone.managerGroup === 'recruiters' && manager.managerType === 'recruiter') ||
-                    (milestone.managerGroup === 'accounts' && manager.managerType === 'account') ||
-                    (milestone.managerGroup === 'custom' && milestone.assignedManagers.includes(manager.managerId));
+            // Для каждого агента считаем milestone отдельно
+            manager.agentsList.forEach(agent => {
+                const agentTotal = agentTotals[agent] || 0;
 
-                if (isApplicable && manager.totalPrepayments >= milestone.targetAmount) {
-                    if (milestone.paymentType === 'fixed') {
-                        manager.milestoneBonus += milestone.paymentValue;
-                    } else if (milestone.paymentType === 'percentage') {
-                        let bonus = (manager.totalPrepayments * milestone.paymentValue) / 100;
-                        if (milestone.maxPayment) {
-                            bonus = Math.min(bonus, milestone.maxPayment);
+                milestonesCtrl.milestones.forEach(milestone => {
+                    const isApplicable = 
+                        milestone.managerGroup === 'all' ||
+                        (milestone.managerGroup === 'recruiters' && manager.managerType === 'recruiter') ||
+                        (milestone.managerGroup === 'accounts' && manager.managerType === 'account') ||
+                        (milestone.managerGroup === 'custom' && milestone.assignedManagers.includes(manager.managerId));
+
+                    if (isApplicable && agentTotal >= milestone.targetAmount) {
+                        if (milestone.paymentType === 'fixed') {
+                            manager.milestoneBonus += milestone.paymentValue;
+                        } else if (milestone.paymentType === 'percentage') {
+                            let bonus = (agentTotal * milestone.paymentValue) / 100;
+                            if (milestone.maxPayment) {
+                                bonus = Math.min(bonus, milestone.maxPayment);
+                            }
+                            manager.milestoneBonus += bonus;
+                        } else if (milestone.paymentType === 'percentageWithCap') {
+                            let bonus = (agentTotal * milestone.paymentValue) / 100;
+                            if (milestone.maxPayment) {
+                                bonus = Math.min(bonus, milestone.maxPayment);
+                            }
+                            manager.milestoneBonus += bonus;
                         }
-                        manager.milestoneBonus += bonus;
-                    } else if (milestone.paymentType === 'percentageWithCap') {
-                        let bonus = (manager.totalPrepayments * milestone.paymentValue) / 100;
-                        if (milestone.maxPayment) {
-                            bonus = Math.min(bonus, milestone.maxPayment);
-                        }
-                        manager.milestoneBonus += bonus;
                     }
-                }
+                });
             });
         });
 

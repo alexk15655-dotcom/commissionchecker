@@ -287,6 +287,35 @@ class App {
         for (const row of data) {
             await db.save('prepaymentsData', row);
         }
+        
+        // После загрузки предоплат - фильтруем ФГ
+        await this.filterFgByPrepayments();
+    }
+
+    async filterFgByPrepayments() {
+        const fgData = await db.getAll('fgData');
+        const prepaymentsData = await db.getAll('prepaymentsData');
+        
+        if (fgData.length === 0 || prepaymentsData.length === 0) return;
+
+        // Получаем уникальные номера ФГ из предоплат
+        const prepaymentFgNumbers = new Set(
+            prepaymentsData.map(p => p['Номер фин. группы']).filter(n => n)
+        );
+
+        // Фильтруем ФГ - оставляем только те, что есть в предоплатах
+        const filteredFg = fgData.filter(fg => {
+            const fgNumber = fg['Номер ФГ'] || fg['id'];
+            return prepaymentFgNumbers.has(fgNumber);
+        });
+
+        // Очищаем и сохраняем отфильтрованные ФГ
+        await db.clear('fgData');
+        for (const fg of filteredFg) {
+            await db.save('fgData', fg);
+        }
+
+        console.log(`Отфильтровано ФГ: ${filteredFg.length} из ${fgData.length}`);
     }
 
     async distributeSources() {
