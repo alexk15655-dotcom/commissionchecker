@@ -266,6 +266,8 @@ class App {
     }
 
     async processFgData(data) {
+        console.log('processFgData вызван, строк:', data.length);
+        
         // Очищаем старые данные
         await db.clear('fgData');
 
@@ -275,10 +277,17 @@ class App {
             agent: this.extractAgentName(row['ФГ'])
         }));
 
+        console.log('Обработано ФГ:', processedData.length);
+        console.log('Первая ФГ:', processedData[0]);
+
         // Сохраняем новые
         for (const row of processedData) {
             await db.save('fgData', row);
         }
+        
+        // Проверяем что сохранилось
+        const saved = await db.getAll('fgData');
+        console.log('Сохранено в БД:', saved.length);
     }
 
     async processPrepaymentsData(data) {
@@ -295,6 +304,7 @@ class App {
 
     async distributeSources() {
         const fgData = await db.getAll('fgData');
+        console.log('distributeSources: ФГ в базе:', fgData.length);
         
         if (fgData.length === 0) {
             alert('Сначала загрузите данные по ФГ');
@@ -303,6 +313,7 @@ class App {
 
         // Группируем ФГ по агентам
         const agentGroups = this.groupAgents(fgData);
+        console.log('Агентов найдено:', Object.keys(agentGroups).length);
 
         // Создаем массив источников по пропорциям
         const sources = [];
@@ -337,17 +348,27 @@ class App {
             });
         }
 
+        console.log('Обновленных ФГ:', updatedData.length);
+        console.log('Первая обновленная ФГ:', updatedData[0]);
+
         // Сохраняем обновленные данные
         await db.clear('fgData');
         for (const item of updatedData) {
             await db.save('fgData', item);
         }
 
+        // Проверяем что сохранилось
+        const savedAfter = await db.getAll('fgData');
+        console.log('После распределения в БД:', savedAfter.length);
+
         alert(`Источники распределены! Найдено агентов: ${Object.keys(agentGroups).length}`);
         
-        // ДОБАВЛЕНО: Обновляем отображение на вкладке ФГ
+        // Обновляем отображение на вкладке ФГ
         if (fgCtrl) {
+            console.log('Вызываем fgCtrl.render()');
             await fgCtrl.render();
+        } else {
+            console.error('fgCtrl не инициализирован!');
         }
     }
 }

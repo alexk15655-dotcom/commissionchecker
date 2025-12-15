@@ -7,11 +7,15 @@ class FgController {
         this.sortColumn = 'agent';
         this.sortDirection = 'asc';
         this.collapsedAgents = new Set();
+        console.log('FgController создан');
     }
 
     async loadData() {
+        console.log('FgController.loadData() вызван');
         this.fgData = await db.getAll('fgData');
         this.prepaymentsData = await db.getAll('prepaymentsData');
+        console.log('Загружено ФГ:', this.fgData.length);
+        console.log('Загружено предоплат:', this.prepaymentsData.length);
         this.calculateStats();
     }
 
@@ -22,7 +26,6 @@ class FgController {
         const parseRussianDate = (dateStr) => {
             if (!dateStr) return null;
             
-            // Формат "нояб. 25 г." или "нояб. 2025 г."
             const ruMonthMatch = dateStr.match(/(янв|февр|мар|апр|ма[йя]|июн|июл|авг|сент|окт|нояб|дек)\w*\.?\s+(\d{2,4})\s*г?\.?/i);
             if (ruMonthMatch) {
                 const monthMap = {
@@ -34,7 +37,6 @@ class FgController {
                 const monthIndex = monthMap[monthKey];
                 let year = parseInt(ruMonthMatch[2]);
                 
-                // Если год двузначный (например 25), преобразуем в 2025
                 if (year < 100) {
                     year = year > 50 ? 1900 + year : 2000 + year;
                 }
@@ -44,7 +46,6 @@ class FgController {
                 }
             }
             
-            // Стандартный парсинг
             const date = new Date(dateStr);
             return isNaN(date.getTime()) ? null : date;
         };
@@ -93,7 +94,7 @@ class FgController {
                 };
             }
 
-            if (fg.manager) {
+            if (fg.manager && rulesCtrl) {
                 const managerId = fg.manager.id;
                 const amount = statsByFg[fgNumber].totalPrepayments;
 
@@ -162,34 +163,48 @@ class FgController {
     formatDate(dateStr) {
         if (!dateStr) return '—';
         
-        // Проверка формата DD.MM.YYYY или DD.MM.YY
+        // Преобразуем в строку если это не строка
+        if (typeof dateStr !== 'string') {
+            if (dateStr instanceof Date) {
+                return dateStr.toLocaleDateString('ru-RU');
+            }
+            dateStr = String(dateStr);
+        }
+        
         const ddmmyyyyMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
         if (ddmmyyyyMatch) {
             const day = ddmmyyyyMatch[1].padStart(2, '0');
             const month = ddmmyyyyMatch[2].padStart(2, '0');
             let year = ddmmyyyyMatch[3];
-            // Если год двузначный, преобразуем в четырёхзначный
             if (year.length === 2) {
                 year = parseInt(year) > 50 ? `19${year}` : `20${year}`;
             }
             return `${day}.${month}.${year}`;
         }
         
-        // Стандартный парсинг ISO дат
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return '—';
         return date.toLocaleDateString('ru-RU');
     }
 
     async render() {
+        console.log('FgController.render() вызван');
         await this.loadData();
         
         const tbody = document.getElementById('fg-tbody');
         
+        if (!tbody) {
+            console.error('Элемент fg-tbody не найден!');
+            return;
+        }
+        
         if (this.fgData.length === 0) {
+            console.log('Нет данных для отображения');
             tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">Загрузите данные по ФГ</td></tr>';
             return;
         }
+
+        console.log('Начинаем рендеринг', this.fgData.length, 'ФГ');
 
         // Группировка по агентам
         const agentGroups = {};
@@ -203,12 +218,13 @@ class FgController {
             agentGroups[agent].push(fg);
         });
 
+        console.log('Агентов для отображения:', Object.keys(agentGroups).length);
+
         // Сортировка агентов
         const sortedAgents = Object.keys(agentGroups).sort((a, b) => {
             if (this.sortColumn === 'agent') {
                 return this.sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
             }
-            // Для других колонок - суммируем по агенту
             const sumA = agentGroups[a].reduce((sum, fg) => {
                 const stats = this.fgStats[fg['Номер ФГ'] || fg['id']] || { totalPrepayments: 0, commission: 0 };
                 return sum + (this.sortColumn === 'prepayments' ? stats.totalPrepayments : stats.commission);
@@ -224,33 +240,34 @@ class FgController {
 
         // Обновляем заголовки с индикаторами сортировки
         const thead = document.querySelector('#fg-table thead');
-        thead.innerHTML = `
-            <tr>
-                <th>ФГ</th>
-                <th>Номер ФГ</th>
-                <th style="cursor: pointer;" onclick="fgCtrl.sortBy('agent')">
-                    Агент ${this.sortColumn === 'agent' ? (this.sortDirection === 'asc' ? '▲' : '▼') : ''}
-                </th>
-                <th>Дата создания ФГ</th>
-                <th>Первая предоплата</th>
-                <th>Реф</th>
-                <th>Источник</th>
-                <th>Менеджер</th>
-                <th style="cursor: pointer; text-align: right;" onclick="fgCtrl.sortBy('prepayments')">
-                    Сумма предоплат ${this.sortColumn === 'prepayments' ? (this.sortDirection === 'asc' ? '▲' : '▼') : ''}
-                </th>
-                <th style="cursor: pointer; text-align: right;" onclick="fgCtrl.sortBy('commission')">
-                    Выплачено комиссии ${this.sortColumn === 'commission' ? (this.sortDirection === 'asc' ? '▲' : '▼') : ''}
-                </th>
-            </tr>
-        `;
+        if (thead) {
+            thead.innerHTML = `
+                <tr>
+                    <th>ФГ</th>
+                    <th>Номер ФГ</th>
+                    <th style="cursor: pointer;" onclick="fgCtrl.sortBy('agent')">
+                        Агент ${this.sortColumn === 'agent' ? (this.sortDirection === 'asc' ? '▲' : '▼') : ''}
+                    </th>
+                    <th>Дата создания ФГ</th>
+                    <th>Первая предоплата</th>
+                    <th>Реф</th>
+                    <th>Источник</th>
+                    <th>Менеджер</th>
+                    <th style="cursor: pointer; text-align: right;" onclick="fgCtrl.sortBy('prepayments')">
+                        Сумма предоплат ${this.sortColumn === 'prepayments' ? (this.sortDirection === 'asc' ? '▲' : '▼') : ''}
+                    </th>
+                    <th style="cursor: pointer; text-align: right;" onclick="fgCtrl.sortBy('commission')">
+                        Выплачено комиссии ${this.sortColumn === 'commission' ? (this.sortDirection === 'asc' ? '▲' : '▼') : ''}
+                    </th>
+                </tr>
+            `;
+        }
 
         sortedAgents.forEach(agentName => {
             const agentFgs = agentGroups[agentName];
             const isCollapsed = this.collapsedAgents.has(agentName);
             const collapseIcon = isCollapsed ? '▶' : '▼';
 
-            // Подсчёт общих сумм для агента
             let agentTotalPrepayments = 0;
             let agentTotalCommission = 0;
             agentFgs.forEach(fg => {
@@ -259,7 +276,6 @@ class FgController {
                 agentTotalCommission += stats.commission;
             });
 
-            // Заголовок агента
             html += `
                 <tr style="background: var(--bg-tertiary); font-weight: 600; cursor: pointer;" onclick="fgCtrl.toggleAgent('${agentName.replace(/'/g, "\\'")}')">
                     <td colspan="3">
@@ -279,7 +295,6 @@ class FgController {
                 </tr>
             `;
 
-            // ФГ агента (показываем только если не свёрнуто)
             if (!isCollapsed) {
                 agentFgs.forEach(fg => {
                     const fgName = fg['ФГ'] || 'Без названия';
@@ -325,6 +340,7 @@ class FgController {
         });
 
         tbody.innerHTML = html;
+        console.log('Рендеринг завершён');
     }
 }
 
