@@ -18,13 +18,25 @@ class FgController {
     calculateStats() {
         const statsByFg = {};
 
+        // Находим первую предоплату для каждой ФГ
+        const firstPrepayments = {};
+        this.prepaymentsData.forEach(payment => {
+            const fgNumber = payment['Номер фин. группы'];
+            const paymentDate = new Date(payment['Период'] || '1970-01-01');
+            
+            if (!firstPrepayments[fgNumber] || paymentDate < firstPrepayments[fgNumber]) {
+                firstPrepayments[fgNumber] = paymentDate;
+            }
+        });
+
         this.prepaymentsData.forEach(payment => {
             const fgNumber = payment['Номер фин. группы'];
             
             if (!statsByFg[fgNumber]) {
                 statsByFg[fgNumber] = {
                     totalPrepayments: 0,
-                    commission: 0
+                    commission: 0,
+                    firstPrepaymentDate: firstPrepayments[fgNumber] || null
                 };
             }
 
@@ -45,7 +57,8 @@ class FgController {
             if (!statsByFg[fgNumber]) {
                 statsByFg[fgNumber] = {
                     totalPrepayments: 0,
-                    commission: 0
+                    commission: 0,
+                    firstPrepaymentDate: null
                 };
             }
 
@@ -115,13 +128,20 @@ class FgController {
         this.render();
     }
 
+    formatDate(dateStr) {
+        if (!dateStr) return '—';
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '—';
+        return date.toLocaleDateString('ru-RU');
+    }
+
     async render() {
         await this.loadData();
         
         const tbody = document.getElementById('fg-tbody');
         
         if (this.fgData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">Загрузите данные по ФГ</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">Загрузите данные по ФГ</td></tr>';
             return;
         }
 
@@ -165,6 +185,8 @@ class FgController {
                 <th style="cursor: pointer;" onclick="fgCtrl.sortBy('agent')">
                     Агент ${this.sortColumn === 'agent' ? (this.sortDirection === 'asc' ? '▲' : '▼') : ''}
                 </th>
+                <th>Дата создания ФГ</th>
+                <th>Первая предоплата</th>
                 <th>Реф</th>
                 <th>Источник</th>
                 <th>Менеджер</th>
@@ -194,11 +216,11 @@ class FgController {
             // Заголовок агента
             html += `
                 <tr style="background: var(--bg-tertiary); font-weight: 600; cursor: pointer;" onclick="fgCtrl.toggleAgent('${agentName.replace(/'/g, "\\'")}')">
-                    <td colspan="2">
+                    <td colspan="3">
                         <span style="margin-right: 0.5rem;">${collapseIcon}</span>
                         ${agentName}
                     </td>
-                    <td>${agentFgs.length} ФГ</td>
+                    <td colspan="2">${agentFgs.length} ФГ</td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -216,17 +238,21 @@ class FgController {
                 agentFgs.forEach(fg => {
                     const fgName = fg['ФГ'] || 'Без названия';
                     const fgNumber = fg['Номер ФГ'] || fg['id'] || '—';
+                    const fgCreated = this.formatDate(fg['Начало работы']);
                     const ref = fg['Реф'] || '—';
                     const source = fg.source || '—';
                     const managerName = fg.manager ? fg.manager.name : '—';
                     
-                    const stats = this.fgStats[fgNumber] || { totalPrepayments: 0, commission: 0 };
+                    const stats = this.fgStats[fgNumber] || { totalPrepayments: 0, commission: 0, firstPrepaymentDate: null };
+                    const firstPrepayment = stats.firstPrepaymentDate ? this.formatDate(stats.firstPrepaymentDate) : '—';
 
                     html += `
                         <tr style="background: var(--bg-primary); opacity: 0.9;">
                             <td style="padding-left: 2rem; font-size: 0.9rem;">└ ${fgName}</td>
                             <td style="font-size: 0.85rem; color: var(--text-tertiary);">${fgNumber}</td>
                             <td></td>
+                            <td style="font-size: 0.85rem; color: var(--text-tertiary);">${fgCreated}</td>
+                            <td style="font-size: 0.85rem; color: var(--text-tertiary);">${firstPrepayment}</td>
                             <td style="font-size: 0.85rem; color: var(--text-tertiary);">${ref}</td>
                             <td>
                                 <span style="

@@ -5,6 +5,7 @@ class ReportController {
         this.prepaymentsData = [];
         this.calculatedReport = [];
         this.collapsedManagers = new Set();
+        this.collapsedAgents = new Set();
     }
 
     async loadData() {
@@ -321,6 +322,15 @@ class ReportController {
         this.render();
     }
 
+    toggleAgent(agentName) {
+        if (this.collapsedAgents.has(agentName)) {
+            this.collapsedAgents.delete(agentName);
+        } else {
+            this.collapsedAgents.add(agentName);
+        }
+        this.render();
+    }
+
     render() {
         const tbody = document.getElementById('report-tbody');
         
@@ -351,13 +361,19 @@ class ReportController {
             `;
             
             if (!isCollapsed) {
+                // Показываем агентов
                 comm.agents.forEach(agentInfo => {
                     const agentCommission = this.agentData[agentInfo.name] ? 
                         Object.values(this.agentData[agentInfo.name].commissions).reduce((sum, c) => sum + c, 0) : 0;
                     
+                    const agentFgs = this.agentData[agentInfo.name] ? this.agentData[agentInfo.name].fgs : [];
+                    const isAgentCollapsed = this.collapsedAgents.has(agentInfo.name);
+                    const agentCollapseIcon = isAgentCollapsed ? '▶' : '▼';
+                    
                     html += `
-                        <tr style="background: var(--bg-primary); opacity: 0.9;">
+                        <tr style="background: var(--bg-primary); opacity: 0.9; cursor: pointer;" onclick="reportCtrl.toggleAgent('${agentInfo.name.replace(/'/g, "\\'")}')">
                             <td style="padding-left: 2rem; font-size: 0.9rem; color: var(--text-secondary);" colspan="4">
+                                <span style="margin-right: 0.5rem;">${agentCollapseIcon}</span>
                                 └ ${agentInfo.name}
                             </td>
                             <td style="text-align: right; font-family: monospace; font-size: 0.9rem;">
@@ -370,6 +386,30 @@ class ReportController {
                             <td></td>
                         </tr>
                     `;
+                    
+                    // Показываем ФГ агента если не свёрнуто
+                    if (!isAgentCollapsed && agentFgs.length > 0) {
+                        agentFgs.forEach(fg => {
+                            const fgNumber = fg['Номер ФГ'] || fg['id'];
+                            const fgName = fg['ФГ'] || 'Без названия';
+                            const fgCreated = fg['Начало работы'] ? new Date(fg['Начало работы']).toLocaleDateString('ru-RU') : '—';
+                            const source = fg.source || '—';
+                            
+                            html += `
+                                <tr style="background: var(--bg-primary); opacity: 0.7;">
+                                    <td style="padding-left: 4rem; font-size: 0.85rem; color: var(--text-tertiary);" colspan="2">
+                                        └ ${fgName}
+                                    </td>
+                                    <td style="font-size: 0.85rem; color: var(--text-tertiary);">${fgNumber}</td>
+                                    <td style="font-size: 0.85rem; color: var(--text-tertiary);">${source}</td>
+                                    <td style="font-size: 0.85rem; color: var(--text-tertiary);">${fgCreated}</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                            `;
+                        });
+                    }
                 });
             }
         });

@@ -21,27 +21,28 @@ class RulesController {
         });
     }
 
-    showAddModal() {
+    showAddModal(existingRule = null) {
         const modal = document.getElementById('modal');
         const modalBody = document.getElementById('modal-body');
         
         const recruiters = managersCtrl.recruiters;
         const accounts = managersCtrl.accountManagers;
         const defaultCommission = app.defaultCommission;
+        const isEdit = !!existingRule;
         
         modalBody.innerHTML = `
-            <h2>Новое правило комиссии</h2>
+            <h2>${isEdit ? 'Редактировать правило' : 'Новое правило комиссии'}</h2>
             
             <div class="form-group">
                 <label>Название правила</label>
-                <input type="text" id="rule-name" placeholder="Например: Q4 2024 Enhanced Commission">
+                <input type="text" id="rule-name" placeholder="Например: Q4 2024 Enhanced Commission" value="${existingRule ? existingRule.name : ''}">
             </div>
 
             <div class="form-group">
                 <label>Тип менеджера</label>
                 <select id="rule-manager-type">
-                    <option value="recruiter">Recruiter</option>
-                    <option value="account">Account Manager</option>
+                    <option value="recruiter" ${existingRule && existingRule.managerType === 'recruiter' ? 'selected' : ''}>Recruiter</option>
+                    <option value="account" ${existingRule && existingRule.managerType === 'account' ? 'selected' : ''}>Account Manager</option>
                 </select>
             </div>
 
@@ -57,18 +58,18 @@ class RulesController {
 
             <div class="form-group">
                 <label>
-                    <input type="radio" name="payment-type" value="percentage" checked style="width: auto; margin-right: 0.5rem;">
+                    <input type="radio" name="payment-type" value="percentage" ${!existingRule || existingRule.paymentType === 'percentage' ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     Процент от суммы (%)
                 </label>
-                <input type="number" id="payment-percentage" value="${defaultCommission}" step="0.1" min="0" style="margin-top: 0.5rem;">
+                <input type="number" id="payment-percentage" value="${existingRule && existingRule.paymentType === 'percentage' ? existingRule.paymentValue : defaultCommission}" step="0.1" min="0" style="margin-top: 0.5rem;" ${existingRule && existingRule.paymentType !== 'percentage' ? 'disabled' : ''}>
             </div>
 
             <div class="form-group">
                 <label>
-                    <input type="radio" name="payment-type" value="fixed" style="width: auto; margin-right: 0.5rem;">
+                    <input type="radio" name="payment-type" value="fixed" ${existingRule && existingRule.paymentType === 'fixed' ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     Фиксированная сумма ($)
                 </label>
-                <input type="number" id="payment-fixed" value="100" step="0.01" min="0" style="margin-top: 0.5rem;" disabled>
+                <input type="number" id="payment-fixed" value="${existingRule && existingRule.paymentType === 'fixed' ? existingRule.paymentValue : 100}" step="0.01" min="0" style="margin-top: 0.5rem;" ${!existingRule || existingRule.paymentType !== 'fixed' ? 'disabled' : ''}>
             </div>
 
             <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--bg-tertiary);">
@@ -76,7 +77,7 @@ class RulesController {
 
             <div class="form-group">
                 <label>
-                    <input type="radio" name="apply-to" value="all" checked style="width: auto; margin-right: 0.5rem;">
+                    <input type="radio" name="apply-to" value="all" ${!existingRule || existingRule.applyTo === 'all' ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     За все предоплаты
                 </label>
                 <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
@@ -86,7 +87,7 @@ class RulesController {
 
             <div class="form-group">
                 <label>
-                    <input type="radio" name="apply-to" value="firstPrepayment" style="width: auto; margin-right: 0.5rem;">
+                    <input type="radio" name="apply-to" value="firstPrepayment" ${existingRule && existingRule.applyTo === 'firstPrepayment' ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     За первую предоплату агента
                 </label>
                 <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
@@ -96,7 +97,7 @@ class RulesController {
 
             <div class="form-group">
                 <label>
-                    <input type="radio" name="apply-to" value="earlyFg" style="width: auto; margin-right: 0.5rem;">
+                    <input type="radio" name="apply-to" value="earlyFg" ${existingRule && existingRule.applyTo === 'earlyFg' ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     За раннюю ФГ группы
                 </label>
                 <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
@@ -106,7 +107,7 @@ class RulesController {
 
             <div class="form-group">
                 <label>
-                    <input type="radio" name="apply-to" value="groupWithThreshold" style="width: auto; margin-right: 0.5rem;">
+                    <input type="radio" name="apply-to" value="groupWithThreshold" ${existingRule && existingRule.applyTo === 'groupWithThreshold' ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     За группу при достижении порога
                 </label>
                 <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
@@ -121,11 +122,11 @@ class RulesController {
                 <label>Логика комбинирования ограничений</label>
                 <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
                     <label>
-                        <input type="radio" name="constraints-logic" value="AND" checked style="width: auto; margin-right: 0.5rem;">
+                        <input type="radio" name="constraints-logic" value="AND" ${!existingRule || existingRule.constraintsLogic === 'AND' ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                         AND (все условия)
                     </label>
                     <label>
-                        <input type="radio" name="constraints-logic" value="OR" style="width: auto; margin-right: 0.5rem;">
+                        <input type="radio" name="constraints-logic" value="OR" ${existingRule && existingRule.constraintsLogic === 'OR' ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                         OR (любое условие)
                     </label>
                 </div>
@@ -133,10 +134,10 @@ class RulesController {
 
             <div class="form-group">
                 <label>
-                    <input type="checkbox" id="constraint-max" style="width: auto; margin-right: 0.5rem;">
+                    <input type="checkbox" id="constraint-max" ${existingRule && existingRule.constraints.maxPerPayment ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     Максимальная выплата за агента ($)
                 </label>
-                <input type="number" id="constraint-max-value" step="0.01" min="0" placeholder="Например: 500" style="margin-top: 0.5rem;" disabled>
+                <input type="number" id="constraint-max-value" step="0.01" min="0" placeholder="Например: 500" value="${existingRule && existingRule.constraints.maxPerPayment ? existingRule.constraints.maxPerPayment : ''}" style="margin-top: 0.5rem;" ${!existingRule || !existingRule.constraints.maxPerPayment ? 'disabled' : ''}>
                 <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
                     Ограничение применяется к общей сумме комиссии за агента
                 </small>
@@ -144,10 +145,10 @@ class RulesController {
 
             <div class="form-group">
                 <label>
-                    <input type="checkbox" id="constraint-threshold" style="width: auto; margin-right: 0.5rem;">
+                    <input type="checkbox" id="constraint-threshold" ${existingRule && existingRule.constraints.minGroupThreshold ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     Минимальный порог группы ($)
                 </label>
-                <input type="number" id="constraint-threshold-value" step="0.01" min="0" placeholder="Например: 1000" style="margin-top: 0.5rem;" disabled>
+                <input type="number" id="constraint-threshold-value" step="0.01" min="0" placeholder="Например: 1000" value="${existingRule && existingRule.constraints.minGroupThreshold ? existingRule.constraints.minGroupThreshold : ''}" style="margin-top: 0.5rem;" ${!existingRule || !existingRule.constraints.minGroupThreshold ? 'disabled' : ''}>
                 <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
                     Не начислять пока сумма ФГ с менеджером не достигнет порога
                 </small>
@@ -155,7 +156,7 @@ class RulesController {
 
             <div class="form-group">
                 <label>
-                    <input type="checkbox" id="constraint-period" style="width: auto; margin-right: 0.5rem;">
+                    <input type="checkbox" id="constraint-period" ${existingRule && existingRule.constraints.periodOnly ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     Только если создано в период отчёта
                 </label>
                 <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
@@ -165,10 +166,10 @@ class RulesController {
 
             <div class="form-group">
                 <label>
-                    <input type="checkbox" id="constraint-new-agents" style="width: auto; margin-right: 0.5rem;">
+                    <input type="checkbox" id="constraint-new-agents" ${existingRule && existingRule.constraints.newAgentsOnly ? 'checked' : ''} style="width: auto; margin-right: 0.5rem;">
                     Только новые агенты (первая ФГ не старше X месяцев)
                 </label>
-                <input type="number" id="constraint-new-agents-months" step="1" min="1" placeholder="Например: 3" style="margin-top: 0.5rem;" disabled>
+                <input type="number" id="constraint-new-agents-months" step="1" min="1" placeholder="Например: 3" value="${existingRule && existingRule.constraints.newAgentsMonths ? existingRule.constraints.newAgentsMonths : ''}" style="margin-top: 0.5rem;" ${!existingRule || !existingRule.constraints.newAgentsOnly ? 'disabled' : ''}>
                 <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
                     Считаются только агенты, чья первая ФГ появилась не раньше указанного количества месяцев от даты расчёта
                 </small>
@@ -178,15 +179,15 @@ class RulesController {
 
             <div class="form-group">
                 <label>Дата начала действия правила</label>
-                <input type="date" id="rule-start-date">
+                <input type="date" id="rule-start-date" value="${existingRule ? existingRule.startDate : ''}">
             </div>
 
             <div class="form-group">
                 <label>Дата окончания действия правила</label>
-                <input type="date" id="rule-end-date">
+                <input type="date" id="rule-end-date" value="${existingRule ? existingRule.endDate : ''}">
             </div>
 
-            <button class="btn btn-primary" id="save-rule-btn">Сохранить правило</button>
+            <button class="btn btn-primary" id="save-rule-btn">${isEdit ? 'Сохранить изменения' : 'Сохранить правило'}</button>
         `;
 
         modal.classList.add('active');
@@ -201,7 +202,7 @@ class RulesController {
             
             managersCheckboxes.innerHTML = managers.map(m => `
                 <label>
-                    <input type="checkbox" value="${m.id}" class="manager-checkbox">
+                    <input type="checkbox" value="${m.id}" class="manager-checkbox" ${existingRule && existingRule.managerIds && existingRule.managerIds.includes(m.id) ? 'checked' : ''}>
                     ${m.name}
                 </label>
             `).join('');
@@ -320,7 +321,11 @@ class RulesController {
                 endDate
             };
 
-            await this.addRule(rule);
+            if (isEdit) {
+                await this.updateRule(existingRule.id, rule);
+            } else {
+                await this.addRule(rule);
+            }
             modal.classList.remove('active');
         });
 
@@ -328,17 +333,29 @@ class RulesController {
             modal.classList.remove('active');
         });
 
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.remove('active');
-            }
-        });
+        // Убрано закрытие по клику вне окна
     }
 
     async addRule(rule) {
         const id = await db.save('rules', rule);
         this.rules.push({ ...rule, id });
         this.render();
+    }
+
+    async updateRule(id, rule) {
+        await db.update('rules', { ...rule, id });
+        const index = this.rules.findIndex(r => r.id === id);
+        if (index !== -1) {
+            this.rules[index] = { ...rule, id };
+        }
+        this.render();
+    }
+
+    editRule(id) {
+        const rule = this.rules.find(r => r.id === id);
+        if (!rule) return;
+        
+        this.showAddModal(rule);
     }
 
     async deleteRule(id) {
@@ -390,7 +407,10 @@ class RulesController {
                             <h3 class="rule-title">${rule.name}</h3>
                             <p style="color: var(--text-secondary); margin-top: 0.25rem;">${managerNames}</p>
                         </div>
-                        <button class="btn btn-small btn-danger" onclick="rulesCtrl.deleteRule(${rule.id})">Удалить</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-small btn-primary" onclick="rulesCtrl.editRule(${rule.id})">Изменить</button>
+                            <button class="btn btn-small btn-danger" onclick="rulesCtrl.deleteRule(${rule.id})">Удалить</button>
+                        </div>
                     </div>
                     <div class="rule-details">
                         <div class="rule-detail">
