@@ -134,9 +134,12 @@ class RulesController {
             <div class="form-group">
                 <label>
                     <input type="checkbox" id="constraint-max" style="width: auto; margin-right: 0.5rem;">
-                    Максимальная выплата за предоплату ($)
+                    Максимальная выплата за агента ($)
                 </label>
                 <input type="number" id="constraint-max-value" step="0.01" min="0" placeholder="Например: 500" style="margin-top: 0.5rem;" disabled>
+                <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
+                    Ограничение применяется к общей сумме комиссии за агента
+                </small>
             </div>
 
             <div class="form-group">
@@ -157,6 +160,17 @@ class RulesController {
                 </label>
                 <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
                     Фильтрация по периоду отчёта в зависимости от условия применения
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="constraint-new-agents" style="width: auto; margin-right: 0.5rem;">
+                    Только новые агенты (первая ФГ не старше X месяцев)
+                </label>
+                <input type="number" id="constraint-new-agents-months" step="1" min="1" placeholder="Например: 3" style="margin-top: 0.5rem;" disabled>
+                <small style="display: block; margin-top: 0.25rem; color: var(--text-tertiary);">
+                    Считаются только агенты, чья первая ФГ появилась не раньше указанного количества месяцев от даты расчёта
                 </small>
             </div>
 
@@ -238,6 +252,10 @@ class RulesController {
             document.getElementById('constraint-threshold-value').disabled = !e.target.checked;
         });
 
+        document.getElementById('constraint-new-agents').addEventListener('change', (e) => {
+            document.getElementById('constraint-new-agents-months').disabled = !e.target.checked;
+        });
+
         // Сохранение правила
         document.getElementById('save-rule-btn').addEventListener('click', async () => {
             const name = document.getElementById('rule-name').value.trim();
@@ -262,7 +280,11 @@ class RulesController {
                 minGroupThreshold: document.getElementById('constraint-threshold').checked
                     ? parseFloat(document.getElementById('constraint-threshold-value').value) || null
                     : null,
-                periodOnly: document.getElementById('constraint-period').checked
+                periodOnly: document.getElementById('constraint-period').checked,
+                newAgentsOnly: document.getElementById('constraint-new-agents').checked,
+                newAgentsMonths: document.getElementById('constraint-new-agents').checked
+                    ? parseInt(document.getElementById('constraint-new-agents-months').value) || null
+                    : null
             };
             
             const startDate = document.getElementById('rule-start-date').value;
@@ -276,6 +298,12 @@ class RulesController {
             // Валидация для groupWithThreshold
             if (applyTo === 'groupWithThreshold' && !constraints.minGroupThreshold) {
                 alert('Для условия "За группу при достижении порога" необходимо указать минимальный порог');
+                return;
+            }
+
+            // Валидация для новых агентов
+            if (constraints.newAgentsOnly && !constraints.newAgentsMonths) {
+                alert('Укажите количество месяцев для условия "Только новые агенты"');
                 return;
             }
 
@@ -350,6 +378,9 @@ class RulesController {
             }
             if (rule.constraints.periodOnly) {
                 constraintsText.push('Только в периоде отчёта');
+            }
+            if (rule.constraints.newAgentsOnly) {
+                constraintsText.push(`Новые агенты (≤${rule.constraints.newAgentsMonths} мес.)`);
             }
             
             return `

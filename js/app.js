@@ -339,7 +339,8 @@ class App {
 
         const updatedData = [];
 
-        // Распределяем источники по агентам
+        // БАГ 2 FIX: Полная перезапись источников и менеджеров
+        // Распределяем источники по агентам заново
         for (const [agentName, agentFgs] of Object.entries(agentGroups)) {
             const randomSource = sources[Math.floor(Math.random() * sources.length)] || 'Проект';
             let manager = null;
@@ -351,20 +352,13 @@ class App {
                 manager = managersCtrl.accountManagers[Math.floor(Math.random() * managersCtrl.accountManagers.length)];
             }
 
-            // Для Акция/Органика/Проект - НЕТ менеджера
+            // Назначаем источник и менеджера всем ФГ агента
             agentFgs.forEach(fg => {
-                let fgManager = manager;
-                let fgSource = randomSource;
-
-                // Для Акция/Органика/Проект менеджер не назначается
-                if (randomSource === 'Акция' || randomSource === 'Органика' || randomSource === 'Проект') {
-                    fgManager = null;
-                }
-
+                // КРИТИЧНО: Полностью перезаписываем source и manager независимо от предыдущих значений
                 updatedData.push({
                     ...fg,
-                    source: fgSource,
-                    manager: fgManager,
+                    source: randomSource,
+                    manager: (randomSource === 'Recruiter' || randomSource === 'Account') ? manager : null,
                     commission: this.defaultCommission
                 });
             });
