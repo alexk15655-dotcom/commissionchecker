@@ -18,13 +18,44 @@ class FgController {
     calculateStats() {
         const statsByFg = {};
 
+        // Функция парсинга русских дат
+        const parseRussianDate = (dateStr) => {
+            if (!dateStr) return null;
+            
+            // Формат "нояб. 25 г." или "нояб. 2025 г."
+            const ruMonthMatch = dateStr.match(/(янв|февр|мар|апр|ма[йя]|июн|июл|авг|сент|окт|нояб|дек)\w*\.?\s+(\d{2,4})\s*г?\.?/i);
+            if (ruMonthMatch) {
+                const monthMap = {
+                    'янв': 0, 'февр': 1, 'мар': 2, 'апр': 3, 'май': 4, 'мая': 4,
+                    'июн': 5, 'июл': 6, 'авг': 7, 'сент': 8, 'окт': 9, 'нояб': 10, 'дек': 11
+                };
+                
+                const monthKey = ruMonthMatch[1].toLowerCase().substring(0, 4);
+                const monthIndex = monthMap[monthKey];
+                let year = parseInt(ruMonthMatch[2]);
+                
+                // Если год двузначный (например 25), преобразуем в 2025
+                if (year < 100) {
+                    year = year > 50 ? 1900 + year : 2000 + year;
+                }
+                
+                if (monthIndex !== undefined) {
+                    return new Date(year, monthIndex, 1);
+                }
+            }
+            
+            // Стандартный парсинг
+            const date = new Date(dateStr);
+            return isNaN(date.getTime()) ? null : date;
+        };
+
         // Находим первую предоплату для каждой ФГ
         const firstPrepayments = {};
         this.prepaymentsData.forEach(payment => {
             const fgNumber = payment['Номер фин. группы'];
-            const paymentDate = new Date(payment['Период'] || '1970-01-01');
+            const paymentDate = parseRussianDate(payment['Период']);
             
-            if (!firstPrepayments[fgNumber] || paymentDate < firstPrepayments[fgNumber]) {
+            if (paymentDate && (!firstPrepayments[fgNumber] || paymentDate < firstPrepayments[fgNumber])) {
                 firstPrepayments[fgNumber] = paymentDate;
             }
         });
@@ -130,6 +161,21 @@ class FgController {
 
     formatDate(dateStr) {
         if (!dateStr) return '—';
+        
+        // Проверка формата DD.MM.YYYY или DD.MM.YY
+        const ddmmyyyyMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+        if (ddmmyyyyMatch) {
+            const day = ddmmyyyyMatch[1].padStart(2, '0');
+            const month = ddmmyyyyMatch[2].padStart(2, '0');
+            let year = ddmmyyyyMatch[3];
+            // Если год двузначный, преобразуем в четырёхзначный
+            if (year.length === 2) {
+                year = parseInt(year) > 50 ? `19${year}` : `20${year}`;
+            }
+            return `${day}.${month}.${year}`;
+        }
+        
+        // Стандартный парсинг ISO дат
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return '—';
         return date.toLocaleDateString('ru-RU');

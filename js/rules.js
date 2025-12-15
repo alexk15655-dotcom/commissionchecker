@@ -21,23 +21,24 @@ class RulesController {
         });
     }
 
-    showAddModal(existingRule = null) {
+    showAddModal(existingRule = null, personalManagerId = null, isPersonal = false) {
         const modal = document.getElementById('modal');
         const modalBody = document.getElementById('modal-body');
         
         const recruiters = managersCtrl.recruiters;
         const accounts = managersCtrl.accountManagers;
         const defaultCommission = app.defaultCommission;
-        const isEdit = !!existingRule;
+        const isEdit = !!existingRule && !isPersonal;
         
         modalBody.innerHTML = `
-            <h2>${isEdit ? 'Редактировать правило' : 'Новое правило комиссии'}</h2>
+            <h2>${isEdit ? 'Редактировать правило' : isPersonal ? 'Персональное правило' : 'Новое правило комиссии'}</h2>
             
             <div class="form-group">
                 <label>Название правила</label>
                 <input type="text" id="rule-name" placeholder="Например: Q4 2024 Enhanced Commission" value="${existingRule ? existingRule.name : ''}">
             </div>
 
+            ${!isPersonal ? `
             <div class="form-group">
                 <label>Тип менеджера</label>
                 <select id="rule-manager-type">
@@ -52,6 +53,10 @@ class RulesController {
                     <!-- Заполнится динамически -->
                 </div>
             </div>
+            ` : `
+            <input type="hidden" id="rule-manager-type" value="${existingRule ? existingRule.managerType : 'recruiter'}">
+            <input type="hidden" id="personal-manager-id" value="${personalManagerId}">
+            `}
 
             <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--bg-tertiary);">
             <h3 style="margin-bottom: 1rem; color: var(--accent-primary);">Шаг 1: Тип начисления</h3>
@@ -192,24 +197,26 @@ class RulesController {
 
         modal.classList.add('active');
 
-        // Динамическое обновление списка менеджеров
-        const managerTypeSelect = document.getElementById('rule-manager-type');
-        const managersCheckboxes = document.getElementById('managers-checkboxes');
-        
-        const updateManagersList = () => {
-            const type = managerTypeSelect.value;
-            const managers = type === 'recruiter' ? recruiters : accounts;
+        // Динамическое обновление списка менеджеров (только для обычных правил)
+        if (!isPersonal) {
+            const managerTypeSelect = document.getElementById('rule-manager-type');
+            const managersCheckboxes = document.getElementById('managers-checkboxes');
             
-            managersCheckboxes.innerHTML = managers.map(m => `
-                <label>
-                    <input type="checkbox" value="${m.id}" class="manager-checkbox" ${existingRule && existingRule.managerIds && existingRule.managerIds.includes(m.id) ? 'checked' : ''}>
-                    ${m.name}
-                </label>
-            `).join('');
-        };
-        
-        updateManagersList();
-        managerTypeSelect.addEventListener('change', updateManagersList);
+            const updateManagersList = () => {
+                const type = managerTypeSelect.value;
+                const managers = type === 'recruiter' ? recruiters : accounts;
+                
+                managersCheckboxes.innerHTML = managers.map(m => `
+                    <label>
+                        <input type="checkbox" value="${m.id}" class="manager-checkbox" ${existingRule && existingRule.managerIds && existingRule.managerIds.includes(m.id) ? 'checked' : ''}>
+                        ${m.name}
+                    </label>
+                `).join('');
+            };
+            
+            updateManagersList();
+            managerTypeSelect.addEventListener('change', updateManagersList);
+        }
 
         // Переключение типа начисления
         document.querySelectorAll('input[name="payment-type"]').forEach(radio => {
@@ -262,8 +269,13 @@ class RulesController {
             const name = document.getElementById('rule-name').value.trim();
             const managerType = document.getElementById('rule-manager-type').value;
             
-            const selectedCheckboxes = document.querySelectorAll('.manager-checkbox:checked');
-            const managerIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
+            let managerIds = [];
+            if (isPersonal) {
+                managerIds = [parseInt(personalManagerId)];
+            } else {
+                const selectedCheckboxes = document.querySelectorAll('.manager-checkbox:checked');
+                managerIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
+            }
             
             const paymentType = document.querySelector('input[name="payment-type"]:checked').value;
             const paymentValue = paymentType === 'percentage' 
@@ -321,7 +333,9 @@ class RulesController {
                 endDate
             };
 
-            if (isEdit) {
+            if (isPersonal) {
+                await managersCtrl.savePersonalRule(personalManagerId, managerType, rule);
+            } else if (isEdit) {
                 await this.updateRule(existingRule.id, rule);
             } else {
                 await this.addRule(rule);
