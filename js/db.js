@@ -2,7 +2,7 @@
 class Database {
     constructor() {
         this.dbName = 'CommissionSystemDB';
-        this.version = 1;
+        this.version = 2; // Увеличена версия для обновления структуры
         this.db = null;
     }
 
@@ -11,8 +11,10 @@ class Database {
             const request = indexedDB.open(this.dbName, this.version);
 
             request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
+            request.onsuccess = async () => {
                 this.db = request.result;
+                // Инициализируем стартовые данные после открытия БД
+                await this.initDefaultData();
                 resolve(this.db);
             };
 
@@ -26,9 +28,12 @@ class Database {
                 if (!db.objectStoreNames.contains('prepaymentsData')) {
                     db.createObjectStore('prepaymentsData', { keyPath: 'id', autoIncrement: true });
                 }
-                if (!db.objectStoreNames.contains('managers')) {
-                    const managersStore = db.createObjectStore('managers', { keyPath: 'id', autoIncrement: true });
-                    managersStore.createIndex('type', 'type', { unique: false });
+                // ИСПРАВЛЕНО: Отдельные хранилища для recruiters и accountManagers
+                if (!db.objectStoreNames.contains('recruiters')) {
+                    db.createObjectStore('recruiters', { keyPath: 'id', autoIncrement: true });
+                }
+                if (!db.objectStoreNames.contains('accountManagers')) {
+                    db.createObjectStore('accountManagers', { keyPath: 'id', autoIncrement: true });
                 }
                 if (!db.objectStoreNames.contains('rules')) {
                     db.createObjectStore('rules', { keyPath: 'id', autoIncrement: true });
@@ -41,6 +46,35 @@ class Database {
                 }
             };
         });
+    }
+
+    async initDefaultData() {
+        // Проверяем, есть ли уже менеджеры
+        const recruiters = await this.getAll('recruiters');
+        const accountManagers = await this.getAll('accountManagers');
+
+        // Если нет данных, создаём стартовых менеджеров
+        if (recruiters.length === 0) {
+            const defaultRecruiters = [
+                { name: 'Recruiter 1', personRules: [] },
+                { name: 'Recruiter 2', personRules: [] },
+                { name: 'Recruiter 3', personRules: [] }
+            ];
+
+            for (const recruiter of defaultRecruiters) {
+                await this.save('recruiters', recruiter);
+            }
+        }
+
+        if (accountManagers.length === 0) {
+            const defaultAccounts = [
+                { name: 'Account Manager 1', personRules: [] }
+            ];
+
+            for (const account of defaultAccounts) {
+                await this.save('accountManagers', account);
+            }
+        }
     }
 
     async save(storeName, data) {
