@@ -199,6 +199,8 @@ class App {
             fgCtrl.render();
         } else if (tabName === 'report') {
             reportCtrl.calculate();
+        } else if (tabName === 'managers') {
+            managersCtrl.render();
         }
     }
 
@@ -288,34 +290,7 @@ class App {
             await db.save('prepaymentsData', row);
         }
         
-        // После загрузки предоплат - фильтруем ФГ
-        await this.filterFgByPrepayments();
-    }
-
-    async filterFgByPrepayments() {
-        const fgData = await db.getAll('fgData');
-        const prepaymentsData = await db.getAll('prepaymentsData');
-        
-        if (fgData.length === 0 || prepaymentsData.length === 0) return;
-
-        // Получаем уникальные номера ФГ из предоплат
-        const prepaymentFgNumbers = new Set(
-            prepaymentsData.map(p => p['Номер фин. группы']).filter(n => n)
-        );
-
-        // Фильтруем ФГ - оставляем только те, что есть в предоплатах
-        const filteredFg = fgData.filter(fg => {
-            const fgNumber = fg['Номер ФГ'] || fg['id'];
-            return prepaymentFgNumbers.has(fgNumber);
-        });
-
-        // Очищаем и сохраняем отфильтрованные ФГ
-        await db.clear('fgData');
-        for (const fg of filteredFg) {
-            await db.save('fgData', fg);
-        }
-
-        console.log(`Отфильтровано ФГ: ${filteredFg.length} из ${fgData.length}`);
+        // ИСПРАВЛЕНО: Убрана автоматическая фильтрация, т.к. номера ФГ могут не совпадать
     }
 
     async distributeSources() {
@@ -339,7 +314,6 @@ class App {
 
         const updatedData = [];
 
-        // БАГ 2 FIX: Полная перезапись источников и менеджеров
         // Распределяем источники по агентам заново
         for (const [agentName, agentFgs] of Object.entries(agentGroups)) {
             const randomSource = sources[Math.floor(Math.random() * sources.length)] || 'Проект';
@@ -354,7 +328,6 @@ class App {
 
             // Назначаем источник и менеджера всем ФГ агента
             agentFgs.forEach(fg => {
-                // КРИТИЧНО: Полностью перезаписываем source и manager независимо от предыдущих значений
                 updatedData.push({
                     ...fg,
                     source: randomSource,
@@ -371,6 +344,11 @@ class App {
         }
 
         alert(`Источники распределены! Найдено агентов: ${Object.keys(agentGroups).length}`);
+        
+        // ДОБАВЛЕНО: Обновляем отображение на вкладке ФГ
+        if (fgCtrl) {
+            await fgCtrl.render();
+        }
     }
 }
 
