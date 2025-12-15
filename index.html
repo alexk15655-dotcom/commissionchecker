@@ -4,242 +4,264 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Система расчёта комиссий v6.0</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Система расчёта комиссий</h1>
-            <p>Версия 6.0</p>
+    <div class="app">
+        <header class="header">
+            <h1>Система расчета комиссий</h1>
+            <p class="subtitle">MVP для управления выплатами агентам • Версия 6.0</p>
+            <button id="theme-toggle" class="theme-toggle" aria-label="Переключить тему">
+                <span class="theme-icon">🌙</span>
+            </button>
         </header>
 
         <nav class="tabs">
-            <button class="tab-btn active" data-tab="fg">Загрузка данных</button>
-            <button class="tab-btn" data-tab="managers">Менеджеры</button>
-            <button class="tab-btn" data-tab="rules">Правила комиссий</button>
-            <button class="tab-btn" data-tab="milestones">Milestones</button>
-            <button class="tab-btn" data-tab="report">Отчёт</button>
-            <button class="tab-btn" data-tab="settings">Настройки</button>
+            <button class="tab active" data-tab="upload">Загрузка данных</button>
+            <button class="tab" data-tab="managers">Менеджеры</button>
+            <button class="tab" data-tab="rules">Правила комиссий</button>
+            <button class="tab" data-tab="milestones">Milestones</button>
+            <button class="tab" data-tab="fg">ФГ</button>
+            <button class="tab" data-tab="report">Отчет</button>
+            <button class="tab" data-tab="settings">Настройки</button>
         </nav>
 
-        <!-- Секция: Загрузка данных -->
-        <section id="fg-section" class="tab-content active">
-            <h2>Загрузка данных</h2>
+        <main class="content">
+            <!-- Upload Tab -->
+            <section id="upload-tab" class="tab-content active">
+                <!-- ПЕРИОД ОТЧЁТА (новый функционал из GitHub) -->
+                <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; border-left: 4px solid var(--accent-primary); box-shadow: 0 2px 8px var(--shadow);">
+                    <h3 style="margin-bottom: 1rem; color: var(--accent-primary); display: flex; align-items: center; gap: 0.5rem;">
+                        📅 Период отчёта
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Дата начала</label>
+                            <input type="date" id="global-start-date" style="width: 100%;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Дата окончания</label>
+                            <input type="date" id="global-end-date" style="width: 100%;">
+                        </div>
+                    </div>
+                    <small style="color: var(--text-tertiary); display: block;">
+                        ℹ️ Этот период будет автоматически применён при расчёте отчёта. Изменить можно в любой момент.
+                    </small>
+                </div>
 
-            <!-- ПЕРИОД ОТЧЁТА -->
-            <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; border-left: 3px solid var(--accent-primary);">
-                <h3 style="margin-bottom: 1rem; color: var(--accent-primary);">Период отчёта</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem;">
+                <div class="card">
+                    <h2>Настройки распределения</h2>
+                    
                     <div class="form-group">
-                        <label>Дата начала</label>
-                        <input type="date" id="global-start-date" style="width: 100%;">
+                        <label>Стартовая комиссия (%)</label>
+                        <input type="number" id="default-commission" value="5" step="0.1" min="0" max="100">
                     </div>
-                    <div class="form-group">
-                        <label>Дата окончания</label>
-                        <input type="date" id="global-end-date" style="width: 100%;">
-                    </div>
-                </div>
-                <small style="color: var(--text-tertiary); display: block;">
-                    Этот период будет автоматически применён при расчёте отчёта. Изменить можно в любой момент.
-                </small>
-            </div>
 
-            <!-- Загрузка ФГ -->
-            <div class="card">
-                <h3>Финансовые группы (ФГ)</h3>
-                <input type="file" id="fg-upload" accept=".csv">
-                <div id="fg-stats" class="stats" style="display: none;">
-                    <p>Загружено ФГ: <span id="fg-count">0</span></p>
-                </div>
-            </div>
-
-            <!-- Загрузка предоплат -->
-            <div class="card">
-                <h3>Предоплаты</h3>
-                <input type="file" id="prepayments-upload" accept=".csv">
-                <div id="prepayments-stats" class="stats" style="display: none;">
-                    <p>Загружено записей: <span id="prepayments-count">0</span></p>
-                </div>
-            </div>
-
-            <!-- Распределение источников -->
-            <div class="card">
-                <h3>Распределение источников</h3>
-                <div class="form-group">
-                    <label>Recruiter (%)</label>
-                    <input type="number" id="recruiter-percent" value="40" min="0" max="100">
-                </div>
-                <div class="form-group">
-                    <label>Account (%)</label>
-                    <input type="number" id="account-percent" value="40" min="0" max="100">
-                </div>
-                <div class="form-group">
-                    <label>Project (%)</label>
-                    <input type="number" id="project-percent" value="20" min="0" max="100">
-                </div>
-                <button class="btn btn-primary" id="distribute-btn">Распределить источники</button>
-            </div>
-
-            <!-- Таблица ФГ -->
-            <div class="card">
-                <h3>Список ФГ</h3>
-                <div style="overflow-x: auto;">
-                    <table id="fg-table">
-                        <thead>
-                            <tr>
-                                <th>ФГ</th>
-                                <th>Номер ФГ</th>
-                                <th>Агент</th>
-                                <th>Дата создания ФГ</th>
-                                <th>Первая предоплата</th>
-                                <th>Реф</th>
-                                <th>Источник</th>
-                                <th>Менеджер</th>
-                                <th>Сумма предоплат</th>
-                                <th>Выплачено комиссии</th>
-                            </tr>
-                        </thead>
-                        <tbody id="fg-tbody">
-                            <tr>
-                                <td colspan="10" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">
-                                    Загрузите данные по ФГ
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Секция: Менеджеры -->
-        <section id="managers-section" class="tab-content">
-            <h2>Менеджеры</h2>
-
-            <div class="card">
-                <h3>Recruiters</h3>
-                <button class="btn btn-primary" id="add-recruiter-btn">Добавить рекрутера</button>
-                <div id="recruiters-list" style="margin-top: 1rem;">
-                    <p style="color: var(--text-tertiary); text-align: center; padding: 2rem;">Рекрутеры не добавлены</p>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>Account Managers</h3>
-                <button class="btn btn-primary" id="add-account-btn">Добавить аккаунт-менеджера</button>
-                <div id="accounts-list" style="margin-top: 1rem;">
-                    <p style="color: var(--text-tertiary); text-align: center; padding: 2rem;">Аккаунт-менеджеры не добавлены</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Секция: Правила комиссий -->
-        <section id="rules-section" class="tab-content">
-            <h2>Правила комиссий</h2>
-            <button class="btn btn-primary" id="add-rule-btn">Добавить правило</button>
-            <div id="rules-list" style="margin-top: 1rem;">
-                <p style="color: var(--text-tertiary); text-align: center; padding: 2rem;">Правила не добавлены</p>
-            </div>
-        </section>
-
-        <!-- Секция: Milestones -->
-        <section id="milestones-section" class="tab-content">
-            <h2>Milestone-бонусы</h2>
-            <button class="btn btn-primary" id="add-milestone-btn">Добавить milestone</button>
-            <div id="milestones-list" style="margin-top: 1rem;">
-                <p style="color: var(--text-tertiary); text-align: center; padding: 2rem;">Milestones не добавлены</p>
-            </div>
-        </section>
-
-        <!-- Секция: Отчёт -->
-        <section id="report-section" class="tab-content">
-            <h2>Отчёт по комиссиям</h2>
-
-            <div class="card">
-                <h3>Параметры отчёта</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div class="form-group">
-                        <label>Дата начала</label>
-                        <input type="date" id="report-start-date">
-                    </div>
-                    <div class="form-group">
-                        <label>Дата окончания</label>
-                        <input type="date" id="report-end-date">
+                    <div class="distributions">
+                        <h3>Пропорции источников (%)</h3>
+                        <div class="slider-group">
+                            <label>Recruiter <span id="recruiter-value">30</span>%</label>
+                            <input type="range" id="recruiter-slider" min="0" max="100" value="30">
+                        </div>
+                        <div class="slider-group">
+                            <label>Account <span id="account-value">25</span>%</label>
+                            <input type="range" id="account-slider" min="0" max="100" value="25">
+                        </div>
+                        <div class="slider-group">
+                            <label>Проект <span id="project-value">25</span>%</label>
+                            <input type="range" id="project-slider" min="0" max="100" value="25">
+                        </div>
+                        <div class="slider-group">
+                            <label>Органика <span id="organic-value">15</span>%</label>
+                            <input type="range" id="organic-slider" min="0" max="100" value="15">
+                        </div>
+                        <div class="slider-group">
+                            <label>Акция <span id="promo-value">5</span>%</label>
+                            <input type="range" id="promo-slider" min="0" max="100" value="5">
+                        </div>
                     </div>
                 </div>
-                <button class="btn btn-primary" id="calculate-btn">Рассчитать комиссии</button>
-            </div>
 
-            <div class="card">
-                <h3>Статистика</h3>
-                <div class="stats">
-                    <div class="stat-item">
-                        <span>Общая сумма предоплат:</span>
-                        <strong id="total-prepayments">$0.00</strong>
+                <div class="upload-grid">
+                    <div class="card">
+                        <h3>Загрузка ФГ</h3>
+                        <input type="file" id="fg-upload" accept=".csv">
+                        <div id="fg-status" class="status"></div>
+                        <button id="distribute-btn" class="btn btn-primary" disabled>Распределить источники</button>
                     </div>
-                    <div class="stat-item">
-                        <span>Комиссии к выплате:</span>
-                        <strong id="total-commissions">$0.00</strong>
-                    </div>
-                    <div class="stat-item">
-                        <span>Количество менеджеров:</span>
-                        <strong id="total-managers">0</strong>
+
+                    <div class="card">
+                        <h3>Загрузка предоплат</h3>
+                        <input type="file" id="prepayments-upload" accept=".csv">
+                        <div id="prepayments-status" class="status"></div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="card">
-                <h3>Детальный отчёт</h3>
-                <div style="overflow-x: auto;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th colspan="4">Менеджер / Агент / ФГ</th>
-                                <th>Предоплаты</th>
-                                <th>Комиссия</th>
-                                <th>Milestone</th>
-                                <th>Итого</th>
-                            </tr>
-                        </thead>
-                        <tbody id="report-tbody">
-                            <tr>
-                                <td colspan="8" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">
-                                    Загрузите данные для расчета комиссий
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <!-- Managers Tab -->
+            <section id="managers-tab" class="tab-content">
+                <div class="managers-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Recruiters</h3>
+                            <button class="btn btn-small btn-primary" id="add-recruiter-btn">+ Добавить</button>
+                        </div>
+                        <div id="recruiters-list" class="managers-list"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Account Managers</h3>
+                            <button class="btn btn-small btn-primary" id="add-account-btn">+ Добавить</button>
+                        </div>
+                        <div id="accounts-list" class="managers-list"></div>
+                    </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- Секция: Настройки -->
-        <section id="settings-section" class="tab-content">
-            <h2>Настройки</h2>
-
-            <div class="card">
-                <h3>Комиссия по умолчанию</h3>
-                <div class="form-group">
-                    <label>Процент (%)</label>
-                    <input type="number" id="default-commission" value="5" min="0" max="100" step="0.1">
+            <!-- Rules Tab -->
+            <section id="rules-tab" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Правила комиссий</h2>
+                        <button class="btn btn-primary" id="add-rule-btn">+ Добавить правило</button>
+                    </div>
+                    <div id="rules-list" class="rules-list"></div>
                 </div>
-                <button class="btn btn-primary" id="save-commission-btn">Сохранить</button>
-            </div>
+            </section>
 
-            <div class="card">
-                <h3>Экспорт/Импорт</h3>
-                <button class="btn btn-primary" id="export-btn">Экспорт всех данных</button>
-                <button class="btn btn-secondary" id="import-btn">Импорт данных</button>
-                <input type="file" id="import-file" accept=".json" style="display: none;">
-            </div>
+            <!-- Milestones Tab -->
+            <section id="milestones-tab" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Milestones</h2>
+                        <button class="btn btn-primary" id="add-milestone-btn">+ Добавить Milestone</button>
+                    </div>
+                    <div id="milestones-list" class="milestones-grid"></div>
+                </div>
+            </section>
 
-            <div class="card">
-                <h3>Очистка данных</h3>
-                <button class="btn btn-danger" id="clear-all-btn">Очистить все данные</button>
-            </div>
-        </section>
+            <!-- FG Tab -->
+            <section id="fg-tab" class="tab-content">
+                <div class="card">
+                    <h2>Финансовые группы</h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Просмотр всех ФГ с агентами, источниками, менеджерами и статистикой по предоплатам
+                    </p>
+                    <div class="table-wrapper">
+                        <table id="fg-table">
+                            <thead>
+                                <tr>
+                                    <th>ФГ</th>
+                                    <th>Номер ФГ</th>
+                                    <th>Агент</th>
+                                    <th>Дата создания ФГ</th>
+                                    <th>Первая предоплата</th>
+                                    <th>Реф</th>
+                                    <th>Источник</th>
+                                    <th>Менеджер</th>
+                                    <th>Сумма предоплат</th>
+                                    <th>Выплачено комиссии</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fg-tbody">
+                                <tr>
+                                    <td colspan="10" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">
+                                        Загрузите данные по ФГ
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Report Tab -->
+            <section id="report-tab" class="tab-content">
+                <div class="card">
+                    <h2>Настройки отчета</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Дата начала периода</label>
+                            <input type="date" id="report-start-date">
+                        </div>
+                        <div class="form-group">
+                            <label>Дата окончания периода</label>
+                            <input type="date" id="report-end-date">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="calculate-btn">Рассчитать комиссии</button>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Всего предоплат</h3>
+                        <p class="stat-value" id="total-prepayments">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Всего комиссий</h3>
+                        <p class="stat-value" id="total-commissions">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Менеджеров</h3>
+                        <p class="stat-value" id="total-managers">0</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Детальный отчёт (трёхуровневая структура)</h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Менеджер → Агент → ФГ • Кликайте для разворачивания/сворачивания
+                    </p>
+                    <div class="table-wrapper">
+                        <table id="report-table">
+                            <thead>
+                                <tr>
+                                    <th colspan="4">Менеджер / Агент / ФГ</th>
+                                    <th>Предоплаты</th>
+                                    <th>Комиссия</th>
+                                    <th>Milestone</th>
+                                    <th>Итого</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-tbody">
+                                <tr>
+                                    <td colspan="8" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">
+                                        Загрузите данные для расчета комиссий
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab (новый из GitHub) -->
+            <section id="settings-tab" class="tab-content">
+                <div class="card">
+                    <h2>Настройки системы</h2>
+                    
+                    <h3 style="margin-top: 1.5rem;">Экспорт/Импорт данных</h3>
+                    <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                        <button class="btn btn-primary" id="export-btn">📥 Экспорт всех данных</button>
+                        <button class="btn btn-primary" id="import-btn">📤 Импорт данных</button>
+                        <input type="file" id="import-file" accept=".json" style="display: none;">
+                    </div>
+                    <p style="color: var(--text-tertiary); margin-top: 0.5rem; font-size: 0.9rem;">
+                        Сохраните резервную копию всех настроек, менеджеров, правил и milestones
+                    </p>
+
+                    <h3 style="margin-top: 2rem; color: var(--danger);">Очистка данных</h3>
+                    <button class="btn btn-danger" id="clear-all-btn">🗑️ Очистить все данные</button>
+                    <p style="color: var(--text-tertiary); margin-top: 0.5rem; font-size: 0.9rem;">
+                        ⚠️ Это действие необратимо. Сделайте экспорт перед очисткой.
+                    </p>
+                </div>
+            </section>
+        </main>
     </div>
 
-    <!-- Модальное окно -->
+    <!-- Модальные окна -->
     <div id="modal" class="modal">
         <div class="modal-content">
             <span class="modal-close">&times;</span>
@@ -248,9 +270,8 @@
     </div>
 
     <!-- Библиотеки -->
-    <script src="libs/localforage.min.js"></script>
-    <script src="libs/papaparse.min.js"></script>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
     <!-- Скрипты приложения -->
     <script src="js/db.js"></script>
     <script src="js/managers.js"></script>
@@ -289,6 +310,113 @@
         if (globalEnd && !globalEnd.value) globalEnd.value = today;
         if (reportStart && !reportStart.value) reportStart.value = monthAgo;
         if (reportEnd && !reportEnd.value) reportEnd.value = today;
+
+        // Обработчики для кнопки расчёта
+        const calculateBtn = document.getElementById('calculate-btn');
+        if (calculateBtn) {
+            calculateBtn.addEventListener('click', () => {
+                if (window.reportCtrl) {
+                    reportCtrl.calculate();
+                }
+            });
+        }
+
+        // Обработчики экспорта/импорта
+        const exportBtn = document.getElementById('export-btn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', async () => {
+                const data = {
+                    version: '6.0',
+                    exportDate: new Date().toISOString(),
+                    fgData: await db.getAll('fgData'),
+                    prepaymentsData: await db.getAll('prepaymentsData'),
+                    recruiters: await db.getAll('recruiters'),
+                    accountManagers: await db.getAll('accountManagers'),
+                    rules: await db.getAll('rules'),
+                    milestones: await db.getAll('milestones'),
+                    settings: {
+                        distribution: app.sourceDistribution,
+                        defaultCommission: app.defaultCommission
+                    }
+                };
+
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `commission-system-backup-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        const importBtn = document.getElementById('import-btn');
+        const importFile = document.getElementById('import-file');
+        
+        if (importBtn && importFile) {
+            importBtn.addEventListener('click', () => {
+                importFile.click();
+            });
+
+            importFile.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        
+                        if (!confirm('Импорт перезапишет все текущие данные. Продолжить?')) return;
+
+                        // Очищаем и импортируем данные
+                        await db.clear('fgData');
+                        await db.clear('prepaymentsData');
+                        await db.clear('recruiters');
+                        await db.clear('accountManagers');
+                        await db.clear('rules');
+                        await db.clear('milestones');
+
+                        for (const fg of data.fgData || []) await db.save('fgData', fg);
+                        for (const prep of data.prepaymentsData || []) await db.save('prepaymentsData', prep);
+                        for (const rec of data.recruiters || []) await db.save('recruiters', rec);
+                        for (const acc of data.accountManagers || []) await db.save('accountManagers', acc);
+                        for (const rule of data.rules || []) await db.save('rules', rule);
+                        for (const mile of data.milestones || []) await db.save('milestones', mile);
+
+                        if (data.settings) {
+                            app.sourceDistribution = data.settings.distribution;
+                            app.defaultCommission = data.settings.defaultCommission;
+                            await app.saveSettings();
+                        }
+
+                        alert('Импорт завершён успешно!');
+                        location.reload();
+                    } catch (error) {
+                        alert('Ошибка импорта: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        const clearAllBtn = document.getElementById('clear-all-btn');
+        if (clearAllBtn) {
+            clearAllBtn.addEventListener('click', async () => {
+                if (!confirm('Вы уверены? Это удалит ВСЕ данные без возможности восстановления!')) return;
+                if (!confirm('Последнее предупреждение: все данные будут удалены!')) return;
+
+                await db.clear('fgData');
+                await db.clear('prepaymentsData');
+                await db.clear('recruiters');
+                await db.clear('accountManagers');
+                await db.clear('rules');
+                await db.clear('milestones');
+
+                alert('Все данные очищены');
+                location.reload();
+            });
+        }
     });
     </script>
 </body>
