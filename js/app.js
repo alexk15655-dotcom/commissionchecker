@@ -171,6 +171,11 @@ class App {
             this.distributeSources();
         });
 
+        // Генерация недостающих данных
+        document.getElementById('generate-missing-data-btn').addEventListener('click', () => {
+            this.generateMissingData();
+        });
+
         // Фильтры отчета
         document.getElementById('report-start-date').addEventListener('change', () => {
             reportCtrl.calculate();
@@ -369,6 +374,142 @@ class App {
             await fgCtrl.render();
         } else {
             console.error('fgCtrl не инициализирован!');
+        }
+    }
+
+    // Генерация недостающих данных
+    async generateMissingData() {
+        const fgData = await db.getAll('fgData');
+        const prepaymentsData = await db.getAll('prepaymentsData');
+
+        if (fgData.length === 0) {
+            alert('Сначала загрузите данные по ФГ');
+            return;
+        }
+
+        let updatedFgCount = 0;
+        let generatedPrepaymentsCount = 0;
+
+        // Функция для генерации случайной даты в диапазоне
+        const randomDate = (start, end) => {
+            const startTime = start.getTime();
+            const endTime = end.getTime();
+            const randomTime = startTime + Math.random() * (endTime - startTime);
+            return new Date(randomTime);
+        };
+
+        // Функция для форматирования даты в DD.MM.YYYY
+        const formatDate = (date) => {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}.${month}.${year}`;
+        };
+
+        // Диапазон для генерации дат начала работы: последние 12 месяцев
+        const now = new Date();
+        const twelveMonthsAgo = new Date(now);
+        twelveMonthsAgo.setMonth(now.getMonth() - 12);
+
+        // 1. Генерация дат начала работы для ФГ без даты
+        for (const fg of fgData) {
+            if (!fg['Начало работы'] || fg['Начало работы'].trim() === '') {
+                const randomStartDate = randomDate(twelveMonthsAgo, now);
+                fg['Начало работы'] = formatDate(randomStartDate);
+                updatedFgCount++;
+            }
+        }
+
+        // Сохраняем обновленные ФГ
+        if (updatedFgCount > 0) {
+            await db.clear('fgData');
+            for (const fg of fgData) {
+                await db.save('fgData', fg);
+            }
+        }
+
+        // 2. Генерация первых предоплат для ФГ без предоплат
+        const fgWithPrepayments = new Set();
+        prepaymentsData.forEach(payment => {
+            const fgNumber = payment['Номер фин. группы'];
+            if (fgNumber) {
+                fgWithPrepayments.add(String(fgNumber));
+            }
+        });
+
+        const newPrepayments = [];
+        for (const fg of fgData) {
+            const fgNumber = String(fg['Номер ФГ'] || fg['id'] || '');
+
+            // Проверяем есть ли уже предоплаты для этой ФГ
+            if (fgNumber && !fgWithPrepayments.has(fgNumber)) {
+                // Парсим дату начала работы
+                let startDate = null;
+                const startDateStr = fg['Начало работы'];
+                if (startDateStr) {
+                    const match = startDateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+                    if (match) {
+                        const day = parseInt(match[1]);
+                        const month = parseInt(match[2]) - 1;
+                        let year = parseInt(match[3]);
+                        if (year < 100) {
+                            year = year > 50 ? 1900 + year : 2000 + year;
+                        }
+                        startDate = new Date(year, month, day);
+                    }
+                }
+
+                // Если нет даты начала работы, используем случайную дату из прошлого года
+                if (!startDate || isNaN(startDate.getTime())) {
+                    startDate = randomDate(twelveMonthsAgo, now);
+                }
+
+                // Дата первой предоплаты: от 0 до 30 дней после начала работы
+                const firstPrepaymentDate = new Date(startDate);
+                firstPrepaymentDate.setDate(firstPrepaymentDate.getDate() + Math.floor(Math.random() * 31));
+
+                // Сумма первой предоплаты: от 100 до 5000
+                const amount = Math.floor(Math.random() * 4900) + 100;
+
+                // Создаём запись о предоплате
+                newPrepayments.push({
+                    'Номер фин. группы': fgNumber,
+                    'Фин. группа': fg['ФГ'] || 'Без названия',
+                    'Период': formatDate(firstPrepaymentDate),
+                    'Пополнения $': String(amount)
+                });
+
+                generatedPrepaymentsCount++;
+            }
+        }
+
+        // Сохраняем новые предоплаты
+        if (newPrepayments.length > 0) {
+            for (const prepayment of newPrepayments) {
+                await db.save('prepaymentsData', prepayment);
+            }
+        }
+
+        // Показываем результат
+        let message = 'Генерация завершена!\n\n';
+        if (updatedFgCount > 0) {
+            message += `✅ Сгенерировано дат начала работы: ${updatedFgCount}\n`;
+        }
+        if (generatedPrepaymentsCount > 0) {
+            message += `✅ Сгенерировано первых предоплат: ${generatedPrepaymentsCount}\n`;
+        }
+        if (updatedFgCount === 0 && generatedPrepaymentsCount === 0) {
+            message += '✅ Все данные уже заполнены, генерация не требуется';
+        }
+
+        alert(message);
+
+        // Обновляем отображение
+        if (fgCtrl) {
+            await fgCtrl.render();
+        }
+        if (reportCtrl) {
+            await reportCtrl.calculate();
         }
     }
 }
