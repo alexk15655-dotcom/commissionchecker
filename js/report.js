@@ -6,6 +6,7 @@ class ReportController {
         this.calculatedReport = [];
         this.collapsedManagers = new Set();
         this.collapsedAgents = new Set();
+        this.fgFirstPrepaymentDates = {}; // { fgNumber: Date }
     }
 
     formatDate(dateStr) {
@@ -31,7 +32,19 @@ class ReportController {
 
     parseRussianDate(dateStr) {
         if (!dateStr) return null;
-        
+
+        // Формат DD.MM.YYYY или DD.MM.YY
+        const ddmmyyyyMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+        if (ddmmyyyyMatch) {
+            const day = parseInt(ddmmyyyyMatch[1]);
+            const month = parseInt(ddmmyyyyMatch[2]) - 1;
+            let year = parseInt(ddmmyyyyMatch[3]);
+            if (year < 100) {
+                year = year > 50 ? 1900 + year : 2000 + year;
+            }
+            return new Date(year, month, day);
+        }
+
         // Формат "нояб. 25 г." или "нояб. 2025 г."
         const ruMonthMatch = dateStr.match(/(янв|февр|мар|апр|ма[йя]|июн|июл|авг|сент|окт|нояб|дек)\w*\.?\s+(\d{2,4})\s*г?\.?/i);
         if (ruMonthMatch) {
@@ -39,20 +52,20 @@ class ReportController {
                 'янв': 0, 'февр': 1, 'мар': 2, 'апр': 3, 'май': 4, 'мая': 4,
                 'июн': 5, 'июл': 6, 'авг': 7, 'сент': 8, 'окт': 9, 'нояб': 10, 'дек': 11
             };
-            
+
             const monthKey = ruMonthMatch[1].toLowerCase().substring(0, 4);
             const monthIndex = monthMap[monthKey];
             let year = parseInt(ruMonthMatch[2]);
-            
+
             if (year < 100) {
                 year = year > 50 ? 1900 + year : 2000 + year;
             }
-            
+
             if (monthIndex !== undefined) {
                 return new Date(year, monthIndex, 1);
             }
         }
-        
+
         // Стандартный парсинг
         const date = new Date(dateStr);
         return isNaN(date.getTime()) ? null : date;
@@ -94,6 +107,9 @@ class ReportController {
         const commissionData = {};
         const agentData = {}; // { agent: { fgs: [], totalPrepayments, manager, earliestFgDate } }
         const agentManagers = {};
+
+        // Очищаем даты первой предоплаты для ФГ
+        this.fgFirstPrepaymentDates = {};
 
         const startDateStr = document.getElementById('report-start-date').value;
         const endDateStr = document.getElementById('report-end-date').value;
@@ -160,7 +176,8 @@ class ReportController {
 
             const fgName = fg['ФГ'] || 'Без названия';
             const agent = fg.agent || app.extractAgentName(fgName);
-            
+            const fgNumber = fg['Номер ФГ'] || fg['id'];
+
             let amount = 0;
             const prepaymentStr = payment['Пополнения $'] || payment['Пополнения'] || '0';
             if (typeof prepaymentStr === 'string') {
@@ -172,9 +189,16 @@ class ReportController {
             const paymentDate = this.parseRussianDate(payment['Период']);
             const isInPeriod = paymentDate && (!startDate || paymentDate >= startDate) && (!endDate || paymentDate <= endDate);
 
+            // Фиксируем первую предоплату для ФГ
+            if (paymentDate && fgNumber) {
+                if (!this.fgFirstPrepaymentDates[fgNumber] || paymentDate < this.fgFirstPrepaymentDates[fgNumber]) {
+                    this.fgFirstPrepaymentDates[fgNumber] = paymentDate;
+                }
+            }
+
             if (agentData[agent]) {
                 agentData[agent].totalPrepayments += amount;
-                
+
                 if (isInPeriod) {
                     agentData[agent].prepaymentsInPeriod += amount;
                 }
@@ -463,17 +487,8 @@ class ReportController {
                             const fgCreated = this.formatDate(fg['Начало работы']);
                             const source = fg.source || '—';
 
-                            // Вычисляем дату первой предоплаты для этой ФГ
-                            let firstPrepaymentDate = null;
-                            this.prepaymentsData.forEach(payment => {
-                                const paymentFgNumber = payment['Номер фин. группы'];
-                                if (paymentFgNumber == fgNumber) {
-                                    const paymentDate = this.parseRussianDate(payment['Период']);
-                                    if (paymentDate && (!firstPrepaymentDate || paymentDate < firstPrepaymentDate)) {
-                                        firstPrepaymentDate = paymentDate;
-                                    }
-                                }
-                            });
+                            // Используем предвычисленную дату первой предоплаты
+                            const firstPrepaymentDate = this.fgFirstPrepaymentDates[fgNumber] || null;
                             const firstPrepayment = this.formatDate(firstPrepaymentDate);
 
                             html += `
