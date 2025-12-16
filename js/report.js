@@ -395,7 +395,7 @@ class ReportController {
         const tbody = document.getElementById('report-tbody');
         
         if (this.calculatedReport.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">Загрузите данные для расчета комиссий</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--text-tertiary); padding: 2rem;">Загрузите данные для расчета комиссий</td></tr>';
             this.updateStats(0, 0, 0);
             return;
         }
@@ -409,10 +409,14 @@ class ReportController {
             
             html += `
                 <tr style="background: var(--bg-tertiary); font-weight: 600; cursor: pointer;" onclick="reportCtrl.toggleManager(${comm.managerId})">
-                    <td colspan="4">
+                    <td colspan="2">
                         <span style="margin-right: 0.5rem;">${collapseIcon}</span>
                         ${comm.managerName} (${comm.managerType})
                     </td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
                     <td style="text-align: right; font-family: monospace;">$${comm.totalPrepayments.toFixed(2)}</td>
                     <td style="text-align: right; color: var(--success); font-family: monospace;">$${comm.commission.toFixed(2)}</td>
                     <td style="text-align: right; color: #a78bfa; font-family: monospace;">$${comm.milestoneBonus.toFixed(2)}</td>
@@ -432,10 +436,14 @@ class ReportController {
                     
                     html += `
                         <tr style="background: var(--bg-primary); opacity: 0.9; cursor: pointer;" onclick="reportCtrl.toggleAgent('${agentInfo.name.replace(/'/g, "\\'")}')">
-                            <td style="padding-left: 2rem; font-size: 0.9rem; color: var(--text-secondary);" colspan="4">
+                            <td style="padding-left: 2rem; font-size: 0.9rem; color: var(--text-secondary);" colspan="2">
                                 <span style="margin-right: 0.5rem;">${agentCollapseIcon}</span>
                                 └ ${agentInfo.name}
                             </td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
                             <td style="text-align: right; font-family: monospace; font-size: 0.9rem;">
                                 $${agentInfo.prepayments.toFixed(2)}
                             </td>
@@ -454,15 +462,31 @@ class ReportController {
                             const fgName = fg['ФГ'] || 'Без названия';
                             const fgCreated = this.formatDate(fg['Начало работы']);
                             const source = fg.source || '—';
-                            
+
+                            // Вычисляем дату первой предоплаты для этой ФГ
+                            let firstPrepaymentDate = null;
+                            this.prepaymentsData.forEach(payment => {
+                                const paymentFgNumber = payment['Номер фин. группы'];
+                                if (paymentFgNumber == fgNumber) {
+                                    const paymentDate = this.parseRussianDate(payment['Период']);
+                                    if (paymentDate && (!firstPrepaymentDate || paymentDate < firstPrepaymentDate)) {
+                                        firstPrepaymentDate = paymentDate;
+                                    }
+                                }
+                            });
+                            const firstPrepayment = this.formatDate(firstPrepaymentDate);
+
                             html += `
                                 <tr style="background: var(--bg-primary); opacity: 0.7;">
-                                    <td style="padding-left: 4rem; font-size: 0.85rem; color: var(--text-tertiary);" colspan="2">
+                                    <td style="padding-left: 4rem; font-size: 0.85rem; color: var(--text-tertiary);">
                                         └ ${fgName}
                                     </td>
+                                    <td></td>
                                     <td style="font-size: 0.85rem; color: var(--text-tertiary);">${fgNumber}</td>
                                     <td style="font-size: 0.85rem; color: var(--text-tertiary);">${source}</td>
                                     <td style="font-size: 0.85rem; color: var(--text-tertiary);">${fgCreated}</td>
+                                    <td style="font-size: 0.85rem; color: var(--text-tertiary);">${firstPrepayment}</td>
+                                    <td></td>
                                     <td></td>
                                     <td></td>
                                     <td></td>
