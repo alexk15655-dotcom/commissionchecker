@@ -50,41 +50,28 @@ class FgController {
             return isNaN(date.getTime()) ? null : date;
         };
 
-        // Находим первую предоплату для каждой ФГ
-        const firstPrepayments = {};
+        // Создаем карту предоплат по имени ФГ (не по номеру!)
+        const prepaymentsByName = {};
         this.prepaymentsData.forEach(payment => {
-            const fgNumber = payment['Номер фин. группы'];
-            const paymentDate = parseRussianDate(payment['Период']);
+            const fgName = payment['Фин. группа'];
+            if (!fgName) return;
             
-            if (paymentDate && (!firstPrepayments[fgNumber] || paymentDate < firstPrepayments[fgNumber])) {
-                firstPrepayments[fgNumber] = paymentDate;
+            // Убираем пробелы и приводим к нижнему регистру для сравнения
+            const normalizedName = fgName.trim().toLowerCase();
+            
+            if (!prepaymentsByName[normalizedName]) {
+                prepaymentsByName[normalizedName] = [];
             }
+            
+            prepaymentsByName[normalizedName].push(payment);
         });
 
-        this.prepaymentsData.forEach(payment => {
-            const fgNumber = payment['Номер фин. группы'];
-            
-            if (!statsByFg[fgNumber]) {
-                statsByFg[fgNumber] = {
-                    totalPrepayments: 0,
-                    commission: 0,
-                    firstPrepaymentDate: firstPrepayments[fgNumber] || null
-                };
-            }
-
-            let amount = 0;
-            const prepaymentStr = payment['Пополнения $'] || payment['Пополнения'] || '0';
-            if (typeof prepaymentStr === 'string') {
-                amount = parseFloat(prepaymentStr.replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-            } else {
-                amount = parseFloat(prepaymentStr) || 0;
-            }
-
-            statsByFg[fgNumber].totalPrepayments += amount;
-        });
+        console.log('Предоплат по уникальным именам ФГ:', Object.keys(prepaymentsByName).length);
 
         this.fgData.forEach(fg => {
             const fgNumber = fg['Номер ФГ'] || fg['id'];
+            const fgName = fg['ФГ'] || '';
+            const normalizedName = fgName.trim().toLowerCase();
             
             if (!statsByFg[fgNumber]) {
                 statsByFg[fgNumber] = {
@@ -93,6 +80,33 @@ class FgController {
                     firstPrepaymentDate: null
                 };
             }
+
+            // Ищем предоплаты по имени ФГ
+            const payments = prepaymentsByName[normalizedName] || [];
+            
+            if (payments.length > 0) {
+                console.log(`ФГ "${fgName}" найдено предоплат:`, payments.length);
+            }
+
+            payments.forEach(payment => {
+                const paymentDate = parseRussianDate(payment['Период']);
+                
+                // Обновляем первую дату предоплаты
+                if (paymentDate && (!statsByFg[fgNumber].firstPrepaymentDate || paymentDate < statsByFg[fgNumber].firstPrepaymentDate)) {
+                    statsByFg[fgNumber].firstPrepaymentDate = paymentDate;
+                }
+
+                // Считаем сумму
+                let amount = 0;
+                const prepaymentStr = payment['Пополнения $'] || payment['Пополнения'] || '0';
+                if (typeof prepaymentStr === 'string') {
+                    amount = parseFloat(prepaymentStr.replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+                } else {
+                    amount = parseFloat(prepaymentStr) || 0;
+                }
+
+                statsByFg[fgNumber].totalPrepayments += amount;
+            });
 
             if (fg.manager && rulesCtrl) {
                 const managerId = fg.manager.id;
@@ -139,6 +153,9 @@ class FgController {
         });
 
         this.fgStats = statsByFg;
+        
+        const withPrepayments = Object.values(statsByFg).filter(s => s.totalPrepayments > 0).length;
+        console.log('ФГ с предоплатами:', withPrepayments, 'из', Object.keys(statsByFg).length);
     }
 
     sortBy(column) {
