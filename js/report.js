@@ -11,7 +11,18 @@ class ReportController {
 
     formatDate(dateStr) {
         if (!dateStr) return '—';
-        
+
+        // Если это уже объект Date, форматируем напрямую
+        if (dateStr instanceof Date) {
+            if (isNaN(dateStr.getTime())) return '—';
+            return dateStr.toLocaleDateString('ru-RU');
+        }
+
+        // Преобразуем в строку если это не строка
+        if (typeof dateStr !== 'string') {
+            dateStr = String(dateStr);
+        }
+
         // Проверка формата DD.MM.YYYY или DD.MM.YY
         const ddmmyyyyMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
         if (ddmmyyyyMatch) {
@@ -23,7 +34,7 @@ class ReportController {
             }
             return `${day}.${month}.${year}`;
         }
-        
+
         // Стандартный парсинг ISO дат
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return '—';
