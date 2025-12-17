@@ -25,54 +25,77 @@ class FgController {
         // Функция парсинга русских дат
         const parseRussianDate = (dateStr) => {
             if (!dateStr) return null;
-            
+
+            // Формат DD.MM.YYYY
+            const ddmmyyyyMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+            if (ddmmyyyyMatch) {
+                const day = parseInt(ddmmyyyyMatch[1]);
+                const month = parseInt(ddmmyyyyMatch[2]) - 1;
+                let year = parseInt(ddmmyyyyMatch[3]);
+                if (year < 100) {
+                    year = year > 50 ? 1900 + year : 2000 + year;
+                }
+                return new Date(year, month, day);
+            }
+
             const ruMonthMatch = dateStr.match(/(янв|февр|мар|апр|ма[йя]|июн|июл|авг|сент|окт|нояб|дек)\w*\.?\s+(\d{2,4})\s*г?\.?/i);
             if (ruMonthMatch) {
                 const monthMap = {
                     'янв': 0, 'февр': 1, 'мар': 2, 'апр': 3, 'май': 4, 'мая': 4,
                     'июн': 5, 'июл': 6, 'авг': 7, 'сент': 8, 'окт': 9, 'нояб': 10, 'дек': 11
                 };
-                
+
                 const monthKey = ruMonthMatch[1].toLowerCase().substring(0, 4);
                 const monthIndex = monthMap[monthKey];
                 let year = parseInt(ruMonthMatch[2]);
-                
+
                 if (year < 100) {
                     year = year > 50 ? 1900 + year : 2000 + year;
                 }
-                
+
                 if (monthIndex !== undefined) {
                     return new Date(year, monthIndex, 1);
                 }
             }
-            
+
             const date = new Date(dateStr);
             return isNaN(date.getTime()) ? null : date;
         };
 
-        // Создаем карту предоплат по имени ФГ (не по номеру!)
+        // Создаем карту предоплат по номеру ФГ И по имени ФГ
+        const prepaymentsByNumber = {};
         const prepaymentsByName = {};
+
         this.prepaymentsData.forEach(payment => {
+            const fgNumber = String(payment['Номер фин. группы'] || '').trim();
             const fgName = payment['Фин. группа'];
-            if (!fgName) return;
-            
-            // Убираем пробелы и приводим к нижнему регистру для сравнения
-            const normalizedName = fgName.trim().toLowerCase();
-            
-            if (!prepaymentsByName[normalizedName]) {
-                prepaymentsByName[normalizedName] = [];
+
+            // По номеру
+            if (fgNumber) {
+                if (!prepaymentsByNumber[fgNumber]) {
+                    prepaymentsByNumber[fgNumber] = [];
+                }
+                prepaymentsByNumber[fgNumber].push(payment);
             }
-            
-            prepaymentsByName[normalizedName].push(payment);
+
+            // По имени
+            if (fgName) {
+                const normalizedName = fgName.trim().toLowerCase();
+                if (!prepaymentsByName[normalizedName]) {
+                    prepaymentsByName[normalizedName] = [];
+                }
+                prepaymentsByName[normalizedName].push(payment);
+            }
         });
 
-        console.log('Предоплат по уникальным именам ФГ:', Object.keys(prepaymentsByName).length);
+        console.log('Предоплат по номерам ФГ:', Object.keys(prepaymentsByNumber).length);
+        console.log('Предоплат по именам ФГ:', Object.keys(prepaymentsByName).length);
 
         this.fgData.forEach(fg => {
-            const fgNumber = fg['Номер ФГ'] || fg['id'];
+            const fgNumber = String(fg['Номер ФГ'] || fg['id'] || '').trim();
             const fgName = fg['ФГ'] || '';
             const normalizedName = fgName.trim().toLowerCase();
-            
+
             if (!statsByFg[fgNumber]) {
                 statsByFg[fgNumber] = {
                     totalPrepayments: 0,
@@ -81,11 +104,16 @@ class FgController {
                 };
             }
 
-            // Ищем предоплаты по имени ФГ
-            const payments = prepaymentsByName[normalizedName] || [];
-            
+            // Ищем предоплаты сначала по номеру ФГ, потом по имени
+            let payments = prepaymentsByNumber[fgNumber] || [];
+
+            // Если не найдено по номеру, ищем по имени
+            if (payments.length === 0 && normalizedName) {
+                payments = prepaymentsByName[normalizedName] || [];
+            }
+
             if (payments.length > 0) {
-                console.log(`ФГ "${fgName}" найдено предоплат:`, payments.length);
+                console.log(`ФГ "${fgName}" (№${fgNumber}) найдено предоплат:`, payments.length);
             }
 
             payments.forEach(payment => {

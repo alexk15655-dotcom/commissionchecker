@@ -502,15 +502,32 @@ class App {
             message += '✅ Все данные уже заполнены, генерация не требуется';
         }
 
-        alert(message);
+        console.log('Генерация завершена:', { updatedFgCount, generatedPrepaymentsCount });
 
         // Обновляем отображение
         if (fgCtrl) {
+            console.log('Вызываем fgCtrl.render() после генерации');
             await fgCtrl.render();
+        } else {
+            console.error('fgCtrl не найден!');
         }
+
         if (reportCtrl) {
+            console.log('Вызываем reportCtrl.calculate() после генерации');
             await reportCtrl.calculate();
+        } else {
+            console.error('reportCtrl не найден!');
         }
+
+        // Проверяем, что данные сохранились
+        const savedFgData = await db.getAll('fgData');
+        const savedPrepaymentsData = await db.getAll('prepaymentsData');
+        console.log('После генерации в БД:', {
+            fgCount: savedFgData.length,
+            prepaymentsCount: savedPrepaymentsData.length
+        });
+
+        alert(message);
     }
 }
 
