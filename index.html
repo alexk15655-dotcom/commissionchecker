@@ -198,6 +198,12 @@
                         </div>
                     </div>
                     <button class="btn btn-primary" id="calculate-btn">Рассчитать комиссии</button>
+                    <div style="margin-top: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="hide-zero-commission-agents" style="cursor: pointer;">
+                            <span>Скрыть агентов без комиссии</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="stats-grid">
@@ -313,14 +319,18 @@
             });
         }
         
-        // Инициализация значениями по умолчанию
-        const today = new Date().toISOString().split('T')[0];
-        const monthAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
-        
-        if (globalStart && !globalStart.value) globalStart.value = monthAgo;
-        if (globalEnd && !globalEnd.value) globalEnd.value = today;
-        if (reportStart && !reportStart.value) reportStart.value = monthAgo;
-        if (reportEnd && !reportEnd.value) reportEnd.value = today;
+        // Инициализация значениями по умолчанию (целый предыдущий месяц)
+        const now = new Date();
+        const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0); // последний день предыдущего месяца
+
+        const prevMonthStartStr = prevMonthStart.toISOString().split('T')[0];
+        const prevMonthEndStr = prevMonthEnd.toISOString().split('T')[0];
+
+        if (globalStart && !globalStart.value) globalStart.value = prevMonthStartStr;
+        if (globalEnd && !globalEnd.value) globalEnd.value = prevMonthEndStr;
+        if (reportStart && !reportStart.value) reportStart.value = prevMonthStartStr;
+        if (reportEnd && !reportEnd.value) reportEnd.value = prevMonthEndStr;
 
         // Обработчики для кнопки расчёта
         const calculateBtn = document.getElementById('calculate-btn');

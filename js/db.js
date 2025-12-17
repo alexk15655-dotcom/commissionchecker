@@ -56,9 +56,9 @@ class Database {
         // Если нет данных, создаём стартовых менеджеров
         if (recruiters.length === 0) {
             const defaultRecruiters = [
-                { name: 'Recruiter 1', personRules: [] },
-                { name: 'Recruiter 2', personRules: [] },
-                { name: 'Recruiter 3', personRules: [] }
+                { name: 'Александр Петров', personRules: [] },
+                { name: 'Мария Соколова', personRules: [] },
+                { name: 'Дмитрий Иванов', personRules: [] }
             ];
 
             for (const recruiter of defaultRecruiters) {
@@ -68,7 +68,7 @@ class Database {
 
         if (accountManagers.length === 0) {
             const defaultAccounts = [
-                { name: 'Account Manager 1', personRules: [] }
+                { name: 'Анна Ковалёва', personRules: [] }
             ];
 
             for (const account of defaultAccounts) {
