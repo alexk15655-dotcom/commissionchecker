@@ -7,6 +7,18 @@ class ReportController {
         this.collapsedManagers = new Set();
         this.collapsedAgents = new Set();
         this.fgFirstPrepaymentDates = {}; // { fgNumber: Date }
+        this.hideZeroCommissionAgents = false;
+
+        // Добавляем обработчик чекбокса после загрузки DOM
+        document.addEventListener('DOMContentLoaded', () => {
+            const checkbox = document.getElementById('hide-zero-commission-agents');
+            if (checkbox) {
+                checkbox.addEventListener('change', (e) => {
+                    this.hideZeroCommissionAgents = e.target.checked;
+                    this.render();
+                });
+            }
+        });
     }
 
     formatDate(dateStr) {
@@ -239,6 +251,7 @@ class ReportController {
                     managerName,
                     managerType,
                     totalPrepayments: 0,
+                    prepaymentsInPeriod: 0,
                     commission: 0,
                     milestoneBonus: 0,
                     agentsCount: 0,
@@ -247,6 +260,7 @@ class ReportController {
             }
 
             commissionData[managerId].totalPrepayments += data.totalPrepayments;
+            commissionData[managerId].prepaymentsInPeriod += data.prepaymentsInPeriod;
             commissionData[managerId].agentsCount += 1;
             commissionData[managerId].agents.push({
                 name: agent,
@@ -441,18 +455,36 @@ class ReportController {
             const managerTotal = comm.commission + comm.milestoneBonus;
             const isCollapsed = this.collapsedManagers.has(comm.managerId);
             const collapseIcon = isCollapsed ? '▶' : '▼';
-            
+
+            // Подсчёт статистики
+            const totalAgents = comm.agents.length;
+            let totalFgs = 0;
+            let agentsWithCommission = 0;
+
+            comm.agents.forEach(agentInfo => {
+                if (this.agentData[agentInfo.name]) {
+                    totalFgs += this.agentData[agentInfo.name].fgs.length;
+                    const agentCommission = Object.values(this.agentData[agentInfo.name].commissions).reduce((sum, c) => sum + c, 0);
+                    if (agentCommission > 0) {
+                        agentsWithCommission++;
+                    }
+                }
+            });
+
             html += `
                 <tr style="background: var(--bg-tertiary); font-weight: 600; cursor: pointer;" onclick="reportCtrl.toggleManager(${comm.managerId})">
                     <td colspan="2">
                         <span style="margin-right: 0.5rem;">${collapseIcon}</span>
                         ${comm.managerName} (${comm.managerType})
+                        <span style="color: var(--text-secondary); font-size: 0.85rem; font-weight: normal; margin-left: 0.5rem;">
+                            • Агентов: ${totalAgents} • ФГ: ${totalFgs} • Выплата за: ${agentsWithCommission}
+                        </span>
                     </td>
                     <td></td>
                     <td></td>
                     <td></td>
                     <td></td>
-                    <td style="text-align: right; font-family: monospace;">$${comm.totalPrepayments.toFixed(2)}</td>
+                    <td style="text-align: right; font-family: monospace;">$${comm.prepaymentsInPeriod.toFixed(2)}</td>
                     <td style="text-align: right; color: var(--success); font-family: monospace;">$${comm.commission.toFixed(2)}</td>
                     <td style="text-align: right; color: #a78bfa; font-family: monospace;">$${comm.milestoneBonus.toFixed(2)}</td>
                     <td style="text-align: right; color: var(--success); font-family: monospace; font-weight: 700;">$${managerTotal.toFixed(2)}</td>
@@ -462,9 +494,14 @@ class ReportController {
             if (!isCollapsed) {
                 // Показываем агентов
                 comm.agents.forEach(agentInfo => {
-                    const agentCommission = this.agentData[agentInfo.name] ? 
+                    const agentCommission = this.agentData[agentInfo.name] ?
                         Object.values(this.agentData[agentInfo.name].commissions).reduce((sum, c) => sum + c, 0) : 0;
-                    
+
+                    // Пропускаем агентов с нулевой комиссией, если включён фильтр
+                    if (this.hideZeroCommissionAgents && agentCommission === 0) {
+                        return;
+                    }
+
                     const agentFgs = this.agentData[agentInfo.name] ? this.agentData[agentInfo.name].fgs : [];
                     const isAgentCollapsed = this.collapsedAgents.has(agentInfo.name);
                     const agentCollapseIcon = isAgentCollapsed ? '▶' : '▼';
@@ -526,11 +563,11 @@ class ReportController {
 
         tbody.innerHTML = html;
 
-        const totalPrepayments = this.calculatedReport.reduce((sum, c) => sum + c.totalPrepayments, 0);
+        const totalPrepaymentsInPeriod = this.calculatedReport.reduce((sum, c) => sum + c.prepaymentsInPeriod, 0);
         const totalCommissions = this.calculatedReport.reduce((sum, c) => sum + c.commission + c.milestoneBonus, 0);
         const totalManagers = this.calculatedReport.length;
 
-        this.updateStats(totalPrepayments, totalCommissions, totalManagers);
+        this.updateStats(totalPrepaymentsInPeriod, totalCommissions, totalManagers);
     }
 
     updateStats(prepayments, commissions, managers) {
