@@ -144,10 +144,17 @@
             <!-- FG Tab -->
             <section id="fg-tab" class="tab-content">
                 <div class="card">
-                    <h2>Финансовые группы</h2>
-                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                        Просмотр всех ФГ с агентами, источниками, менеджерами и статистикой по предоплатам
-                    </p>
+                    <div class="card-header">
+                        <div>
+                            <h2>Финансовые группы</h2>
+                            <p style="color: var(--text-secondary); margin-bottom: 0;">
+                                Просмотр всех ФГ с агентами, источниками, менеджерами и статистикой по предоплатам
+                            </p>
+                        </div>
+                        <button class="btn btn-primary" id="generate-missing-data-btn" style="white-space: nowrap;">
+                            ✨ Сгенерировать недостающие данные
+                        </button>
+                    </div>
                     <div class="table-wrapper">
                         <table id="fg-table">
                             <thead>
